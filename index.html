@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sistema de gestión y edición de PDFs y planos arquitectónicos con control de usuarios, auditoría y anotaciones interactivas.">
+    <title>ECOSOL PLANOS - Editor de PDF & Gestión de Usuarios</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- PDF.js CDN for rendering PDFs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    
+    <!-- pdf-lib for exporting PDFs -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="light-theme">
+
+    <!-- LOGIN / REGISTER MODAL (Overlay when not logged in) -->
+    <div id="auth-modal" class="modal-backdrop">
+        <div class="auth-card glass-panel">
+            <div class="auth-header">
+                <div class="logo-box" style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                    <img src="assets/ecosol-logo.png" alt="ECOSOL PLANOS" style="max-height: 80px; width: auto; object-fit: contain;" />
+                    <h2 style="font-size: 1.6rem; margin-top: 4px;">ECOSOL <span style="color: var(--primary);">PLANOS</span></h2>
+                </div>
+                <p id="auth-subtitle">Sistema de Edición de PDFs y Auditoría Inmobiliaria</p>
+            </div>
+
+            <!-- Tabs Login / Register -->
+            <div class="auth-tabs">
+                <button id="tab-login-btn" class="tab-btn active" onclick="switchAuthTab('login')">
+                    <i data-lucide="log-in"></i> Iniciar Sesión
+                </button>
+                <button id="tab-register-btn" class="tab-btn" onclick="switchAuthTab('register')">
+                    <i data-lucide="user-plus"></i> Registrarse
+                </button>
+            </div>
+
+            <!-- Form Iniciar Sesión -->
+            <form id="login-form" class="auth-form active-form" onsubmit="handleLogin(event)">
+                <div class="input-group">
+                    <label for="login-username">Usuario o Email</label>
+                    <div class="input-wrapper">
+                        <i data-lucide="user"></i>
+                        <input type="text" id="login-username" placeholder="Ej: admin o carlos@ejemplo.com" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="login-password">Contraseña</label>
+                    <div class="input-wrapper">
+                        <i data-lucide="lock"></i>
+                        <input type="password" id="login-password" placeholder="••••••••" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block btn-lg">
+                    <i data-lucide="arrow-right"></i> Entrar al Sistema
+                </button>
+
+                <!-- Acceso Rápido para Demostración -->
+                <div class="demo-access">
+                    <p class="demo-title"><i data-lucide="zap"></i> Accesos Directos de Demostración:</p>
+                    <div class="demo-buttons">
+                        <button type="button" class="btn btn-sm btn-outline-admin" onclick="fillDemoCredentials('admin', 'admin123')">
+                            👑 Admin (Ver todo)
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-user" onclick="fillDemoCredentials('usuario1', 'user123')">
+                            👷 Arquitecto Juan
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-user" onclick="fillDemoCredentials('maria_ing', 'user123')">
+                            👷‍♀️ Ing. María
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Form Registro de Usuario -->
+            <form id="register-form" class="auth-form" onsubmit="handleRegister(event)">
+                <div class="input-group">
+                    <label for="reg-name">Nombre Completo</label>
+                    <div class="input-wrapper">
+                        <i data-lucide="user-check"></i>
+                        <input type="text" id="reg-name" placeholder="Ej: Ana Gómez" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-username">Nombre de Usuario</label>
+                    <div class="input-wrapper">
+                        <i data-lucide="at-sign"></i>
+                        <input type="text" id="reg-username" placeholder="Ej: anagomez" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-email">Correo Electrónico</label>
+                    <div class="input-wrapper">
+                        <i data-lucide="mail"></i>
+                        <input type="email" id="reg-email" placeholder="ana@empresa.com" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-password">Contraseña</label>
+                    <div class="input-wrapper">
+                        <i data-lucide="key"></i>
+                        <input type="password" id="reg-password" placeholder="Mínimo 6 caracteres" minlength="6" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-invite-code">Código de Invitación (Opcional)</label>
+                    <div class="input-wrapper">
+                        <i data-lucide="ticket"></i>
+                        <input type="text" id="reg-invite-code" placeholder="Ej: INV-9876 (proporcionado por Admin)">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-avatar">Foto de Perfil (Opcional)</label>
+                    <div class="input-wrapper">
+                        <i data-lucide="image"></i>
+                        <input type="file" id="reg-avatar" accept="image/*" style="padding: 10px 14px 10px 42px;">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-success btn-block btn-lg">
+                    <i data-lucide="check-circle"></i> Crear Mi Cuenta
+                </button>
+            </form>
+            
+            <div id="auth-alert" class="alert-box hidden"></div>
+        </div>
+    </div>
+
+    <!-- MAIN APP STRUCTURE -->
+    <div id="app-container" class="app-layout">
+        
+        <!-- SIDEBAR NAVIGATION -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="brand" onclick="navigateTo('documents')" style="cursor: pointer; display: flex; align-items: center; gap: 10px;" title="Ir a Mis Documentos">
+                    <img src="assets/ecosol-logo.png" alt="ECOSOL PLANOS" class="sidebar-logo-img" style="max-height: 46px; width: auto; object-fit: contain;" />
+                    <div class="brand-text">
+                        <span class="brand-title" style="font-weight: 800; letter-spacing: 0.5px;">ECOSOL</span>
+                        <span class="brand-tag" style="color: var(--primary); font-weight: 700;">PLANOS</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Current User Info Widget -->
+            <div class="user-card-small">
+                <div class="avatar" id="sidebar-avatar">A</div>
+                <div class="user-info-text">
+                    <span id="sidebar-username" class="user-name">Administrador</span>
+                    <span id="sidebar-userrole" class="user-role badge badge-admin">ADMINISTRADOR</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-menu">
+                <div class="menu-category">PRINCIPAL</div>
+                <button class="nav-item active" data-view="documents" onclick="navigateTo('documents')">
+                    <i data-lucide="folder-open"></i>
+                    <span>Mis Documentos & Planos</span>
+                    <span class="badge badge-pill" id="badge-doc-count">0</span>
+                </button>
+                <button class="nav-item" data-view="editor" onclick="navigateTo('editor')">
+                    <i data-lucide="edit-3"></i>
+                    <span>Editor de PDFs / Formas</span>
+                </button>
+
+                <div class="menu-category admin-only-section">ADMINISTRACIÓN</div>
+                <button class="nav-item admin-only" data-view="admin-users" onclick="navigateTo('admin-users')">
+                    <i data-lucide="users"></i>
+                    <span>Gestión de Usuarios</span>
+                    <span class="badge badge-pill badge-primary" id="badge-users-count">0</span>
+                </button>
+                <button class="nav-item admin-only" data-view="admin-audit" onclick="navigateTo('admin-audit')">
+                    <i data-lucide="shield-alert"></i>
+                    <span>Historial & Conexiones</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button class="btn btn-outline-danger btn-block" onclick="handleLogout()">
+                    <i data-lucide="log-out"></i> Cerrar Sesión
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="main-content">
+            
+            <!-- TOP NAVBAR -->
+            <header class="top-navbar glass-header">
+                <div class="navbar-left">
+                    <button class="btn btn-icon btn-secondary" onclick="toggleAppSidebar()" title="Ocultar/Mostrar Menú Lateral" style="margin-right: 10px;">
+                        <i data-lucide="menu"></i>
+                    </button>
+                    <h1 id="page-title" class="page-title">
+                        <i data-lucide="folder-open"></i> Mis Documentos y Planos
+                    </h1>
+                </div>
+                <div class="navbar-right">
+                    <!-- Quick Search -->
+                    <div class="quick-search">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="global-search" placeholder="Buscar planos, usuarios o registros..." oninput="handleGlobalSearch(this.value)">
+                    </div>
+
+                    <button class="btn btn-icon btn-secondary" title="Cambiar Tema" onclick="toggleTheme()">
+                        <i data-lucide="sun" id="theme-icon"></i>
+                    </button>
+
+                    <div class="user-dropdown">
+                        <button class="user-dropdown-btn" onclick="toggleUserMenu()">
+                            <div class="avatar avatar-sm" id="nav-avatar">A</div>
+                            <span id="nav-username">Admin</span>
+                            <i data-lucide="chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- VIEW CONTAINER -->
+            <div class="content-body">
+
+                <!-- 1. VIEW: DOCUMENTS LIBRARY -->
+                <section id="view-documents" class="app-view active-view">
+                    <div class="view-header">
+                        <div class="header-intro">
+                            <h2>Biblioteca de Planos y Documentos PDF</h2>
+                            <p>Sube archivos PDF o selecciona un plano existente para anotarlo con formas de colores, sellos y texto.</p>
+                        </div>
+                        <div class="header-actions">
+                            <label for="pdf-file-input" class="btn btn-primary btn-lg upload-btn">
+                                <i data-lucide="upload-cloud"></i> Subir Nuevo PDF
+                                <input type="file" id="pdf-file-input" accept="application/pdf" class="hidden-input" onchange="handleFileUpload(event)">
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Upload Drag & Drop Area -->
+                    <div class="upload-dropzone" id="dropzone" onclick="document.getElementById('pdf-file-input').click()">
+                        <div class="dropzone-content">
+                            <div class="dropzone-icon">
+                                <i data-lucide="file-up"></i>
+                            </div>
+                            <h3>Arrastra y suelta tu archivo PDF aquí</h3>
+                            <p>o haz clic para explorar en tu computadora (Soporta PDF hasta 50MB)</p>
+                        </div>
+                    </div>
+
+                    <!-- Filter Bar -->
+                    <div class="filter-bar">
+                        <div class="filter-group">
+                            <button class="filter-tab active" onclick="filterDocs('all')">Todos (<span id="count-all-docs">0</span>)</button>
+                            <button class="filter-tab" onclick="filterDocs('my')">Mis Subidas</button>
+                            <button class="filter-tab" onclick="filterDocs('edited')">Editados Recientemente</button>
+                        </div>
+                        <div class="view-switch">
+                            <button class="btn btn-icon btn-sm active" id="btn-grid-view" onclick="setDocViewMode('grid')"><i data-lucide="grid"></i></button>
+                            <button class="btn btn-icon btn-sm" id="btn-list-view" onclick="setDocViewMode('list')"><i data-lucide="list"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Documents Grid -->
+                    <div id="docs-container" class="docs-grid">
+                        <!-- Loaded dynamically via JavaScript -->
+                    </div>
+                </section>
+
+                <!-- 2. VIEW: PDF EDITOR & SHAPES CANVAS -->
+                <section id="view-editor" class="app-view">
+                    <!-- Editor Top Control Toolbar -->
+                    <div class="editor-toolbar glass-panel">
+                        <!-- File info & Back -->
+                        <div class="toolbar-section">
+                            <button class="btn btn-icon btn-secondary" onclick="toggleAppSidebar()" title="Ocultar/Mostrar Menú Lateral">
+                                <i data-lucide="panel-left-close" id="sidebar-toggle-icon"></i>
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="navigateTo('documents')">
+                                <i data-lucide="arrow-left"></i> Volver
+                            </button>
+                            <div class="active-doc-info">
+                                <span id="editor-doc-title" class="doc-title">Selecciona un Plano...</span>
+                                <span id="editor-doc-badge" class="badge badge-secondary">Vista Previa</span>
+                            </div>
+                        </div>
+
+                        <!-- Page Navigation & Zoom -->
+                        <div class="toolbar-section">
+                            <button class="btn btn-icon btn-sm" onclick="changePage(-1)" title="Página Anterior"><i data-lucide="chevron-left"></i></button>
+                            <span class="page-indicator">Pág <span id="current-page-num">1</span> de <span id="total-pages-num">1</span></span>
+                            <button class="btn btn-icon btn-sm" onclick="changePage(1)" title="Página Siguiente"><i data-lucide="chevron-right"></i></button>
+
+                            <div class="divider-v"></div>
+
+                            <button class="btn btn-icon btn-sm" onclick="zoomCanvas(-0.15)" title="Alejar (Ctrl + Rueda Abajo / Ctrl + -)"><i data-lucide="zoom-out"></i></button>
+                            <span id="zoom-percentage" class="zoom-text">100%</span>
+                            <button class="btn btn-icon btn-sm" onclick="zoomCanvas(0.15)" title="Acercar (Ctrl + Rueda Arriba / Ctrl + +)"><i data-lucide="zoom-in"></i></button>
+                            
+                            <button class="btn btn-sm btn-secondary" onclick="fitCanvasToWidth()" title="Ajustar al Ancho Máximo de Pantalla">
+                                <i data-lucide="stretch-horizontal"></i> Ajustar Ancho
+                            </button>
+                            
+                            <button class="btn btn-icon btn-sm btn-secondary" onclick="toggleEditorFullscreen()" title="Modo Pantalla Completa (F11)">
+                                <i data-lucide="expand" id="fullscreen-toggle-icon"></i>
+                            </button>
+                        </div>
+
+                        <!-- Main Drawing Tools -->
+                        <div class="toolbar-section tools-group">
+                            <button class="tool-btn active" data-tool="select" onclick="setActiveTool('select')" title="Seleccionar y Editar Formas">
+                                <i data-lucide="mouse-pointer"></i>
+                            </button>
+                            <button class="tool-btn" data-tool="pan" onclick="setActiveTool('pan')" title="Mover Plano (Clic y Arrastrar para Desplazarte)">
+                                <i data-lucide="hand"></i>
+                            </button>
+                            <button class="tool-btn" data-tool="rect" onclick="setActiveTool('rect')" title="Insertar Rectángulo">
+                                <i data-lucide="square"></i>
+                            </button>
+                            <button class="tool-btn" data-tool="circle" onclick="setActiveTool('circle')" title="Insertar Círculo/Elipse">
+                                <i data-lucide="circle"></i>
+                            </button>
+                            <button class="tool-btn" data-tool="line" onclick="setActiveTool('line')" title="Insertar Flecha / Línea">
+                                <i data-lucide="move-up-right"></i>
+                            </button>
+                            <button class="tool-btn" data-tool="draw" onclick="setActiveTool('draw')" title="Lápiz / Dibujo Libre">
+                                <i data-lucide="pen-tool"></i>
+                            </button>
+                            <button class="tool-btn" data-tool="text" onclick="setActiveTool('text')" title="Insertar Texto / Nota">
+                                <i data-lucide="type"></i>
+                            </button>
+                            <button class="tool-btn" data-tool="stamp" onclick="setActiveTool('stamp')" title="Insertar Sello de Estado">
+                                <i data-lucide="stamp"></i>
+                            </button>
+                        </div>
+
+                        <!-- Tool Customization Bar (Color, Width, Opacity) -->
+                        <div class="toolbar-section customization-group">
+                            <!-- Color Picker -->
+                            <div class="color-picker-wrapper" title="Color de Forma/Línea">
+                                <label>Color:</label>
+                                <input type="color" id="shape-color-picker" value="#ef4444" onchange="updateSelectedToolStyle()">
+                                <div class="color-presets">
+                                    <span class="color-dot" style="background:#ef4444" onclick="setColorPreset('#ef4444')"></span>
+                                    <span class="color-dot" style="background:#3b82f6" onclick="setColorPreset('#3b82f6')"></span>
+                                    <span class="color-dot" style="background:#10b981" onclick="setColorPreset('#10b981')"></span>
+                                    <span class="color-dot" style="background:#f59e0b" onclick="setColorPreset('#f59e0b')"></span>
+                                    <span class="color-dot" style="background:#8b5cf6" onclick="setColorPreset('#8b5cf6')"></span>
+                                    <span class="color-dot" style="background:#000000" onclick="setColorPreset('#000000')"></span>
+                                </div>
+                            </div>
+
+                            <!-- Fill Opacity -->
+                            <div class="style-input" title="Relleno de Color">
+                                <label>Relleno:</label>
+                                <select id="shape-fill-select" onchange="updateSelectedToolStyle()">
+                                    <option value="transparent">Sin Relleno</option>
+                                    <option value="0.2" selected>Suave (20%)</option>
+                                    <option value="0.5">Medio (50%)</option>
+                                    <option value="0.8">Intenso (80%)</option>
+                                    <option value="1.0">Sólido (100%)</option>
+                                </select>
+                            </div>
+
+                            <!-- Stroke Width -->
+                            <div class="style-input" title="Grosor de Borde">
+                                <label>Grosor:</label>
+                                <select id="shape-stroke-select" onchange="updateSelectedToolStyle()">
+                                    <option value="2">2px</option>
+                                    <option value="4" selected>4px</option>
+                                    <option value="8">8px</option>
+                                    <option value="12">12px</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Actions: Save, Undo, Delete, Export -->
+                        <div class="toolbar-section actions-group">
+                            <button class="btn btn-icon btn-sm" onclick="undoAnnotation()" title="Deshacer (Ctrl+Z)"><i data-lucide="undo"></i></button>
+                            <button class="btn btn-icon btn-sm btn-danger-icon" onclick="deleteSelectedAnnotation()" title="Borrar Selección"><i data-lucide="trash-2"></i></button>
+
+                            <button class="btn btn-success btn-sm" onclick="saveCurrentEdits()">
+                                <i data-lucide="save"></i> Guardar Edición
+                            </button>
+                            <button class="btn btn-primary btn-sm" onclick="exportAnnotatedPDF()">
+                                <i data-lucide="download"></i> Exportar PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Canvas Workspace Area -->
+                    <div class="editor-workspace">
+                        
+                        <!-- Left Panel: Layers / Annotations List -->
+                        <div class="annotations-sidebar" id="annotations-sidebar">
+                            <div class="sidebar-panel-header">
+                                <h3><i data-lucide="layers"></i> Capas de Edición</h3>
+                                <div style="display:flex; align-items:center; gap:6px;">
+                                    <span id="annotation-count-tag" class="badge badge-secondary">0 elementos</span>
+                                    <button class="btn btn-icon btn-sm btn-secondary" onclick="toggleAnnotationsSidebar()" title="Ocultar Panel de Capas">
+                                        <i data-lucide="chevron-left"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="annotations-list" class="annotations-list">
+                                <p class="empty-list-text">No hay elementos agregados aún. Usa la barra superior para insertar rectángulos, círculos, flechas o texto.</p>
+                            </div>
+                        </div>
+
+                        <!-- Button to reopen Annotations Sidebar when collapsed -->
+                        <button id="reopen-layers-btn" class="btn btn-icon btn-secondary layers-reopen-btn hidden" onclick="toggleAnnotationsSidebar()" title="Mostrar Capas">
+                            <i data-lucide="layers"></i>
+                        </button>
+
+                        <!-- Main Canvas Viewer Box -->
+                        <div class="canvas-viewport" id="canvas-viewport">
+                            <div id="canvas-container" class="canvas-container">
+                                <!-- PDF Render Background Canvas -->
+                                <canvas id="pdf-render-canvas"></canvas>
+                                <!-- Interactive Drawing Overlay Canvas -->
+                                <canvas id="annotation-overlay-canvas"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. VIEW: ADMIN USER MANAGEMENT -->
+                <section id="view-admin-users" class="app-view">
+                    <div class="view-header">
+                        <div class="header-intro">
+                            <h2>Panel de Administración de Usuarios</h2>
+                            <p>Supervisa todos los usuarios registrados, sus roles, última conexión y nivel de actividad en el sistema.</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-primary" onclick="openInviteUserModal()">
+                                <i data-lucide="user-plus"></i> Invitar / Crear Usuario
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Admin Quick Stats -->
+                    <div class="admin-stats-grid">
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon icon-blue"><i data-lucide="users"></i></div>
+                            <div class="stat-details">
+                                <span class="stat-label">Total Usuarios</span>
+                                <h3 id="stat-total-users">0</h3>
+                                <span class="stat-sub text-success"><i data-lucide="trending-up"></i> Registrados en el sistema</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon icon-green"><i data-lucide="user-check"></i></div>
+                            <div class="stat-details">
+                                <span class="stat-label">Usuarios Activos</span>
+                                <h3 id="stat-active-users">0</h3>
+                                <span class="stat-sub text-muted">Últimos 7 días</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon icon-purple"><i data-lucide="edit-3"></i></div>
+                            <div class="stat-details">
+                                <span class="stat-label">Total Ediciones</span>
+                                <h3 id="stat-total-edits">0</h3>
+                                <span class="stat-sub text-muted">Cambios registrados</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon icon-amber"><i data-lucide="ticket"></i></div>
+                            <div class="stat-details">
+                                <span class="stat-label">Invitaciones Pendientes</span>
+                                <h3 id="stat-pending-invites">0</h3>
+                                <span class="stat-sub text-muted">Códigos de acceso</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Users Table Card -->
+                    <div class="table-card glass-panel">
+                        <div class="table-header">
+                            <h3>Usuarios Registrados</h3>
+                            <div class="table-search">
+                                <i data-lucide="search"></i>
+                                <input type="text" id="user-table-search" placeholder="Filtrar por nombre, usuario o email..." oninput="filterUsersTable(this.value)">
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="data-table" id="users-table">
+                                <thead>
+                                    <tr>
+                                        <th>Usuario</th>
+                                        <th>Rol</th>
+                                        <th>Estado</th>
+                                        <th>Fecha Registro</th>
+                                        <th>Última Conexión</th>
+                                        <th>Ediciones</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-table-body">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. VIEW: ADMIN AUDIT LOG & LAST CONNECTIONS -->
+                <section id="view-admin-audit" class="app-view">
+                    <div class="view-header">
+                        <div class="header-intro">
+                            <h2>Historial de Auditoría & Actividad</h2>
+                            <p>Registro cronológico detallado de inicios de sesión, modificaciones en PDFs, invitaciones y cambios de rol.</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-secondary" onclick="exportAuditLogsCSV()">
+                                <i data-lucide="download"></i> Exportar Registro (CSV)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Audit Log Filter Bar -->
+                    <div class="filter-bar glass-panel">
+                        <div class="filter-inputs">
+                            <select id="audit-filter-user" onchange="renderAuditLogs()">
+                                <option value="all">Todos los usuarios</option>
+                            </select>
+                            <select id="audit-filter-action" onchange="renderAuditLogs()">
+                                <option value="all">Todas las acciones</option>
+                                <option value="LOGIN">Conexiones / Inicio de Sesión</option>
+                                <option value="PDF_EDIT">Edición de PDF</option>
+                                <option value="PDF_UPLOAD">Subida de PDF</option>
+                                <option value="USER_INVITE">Invitaciones de Usuario</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Audit Timeline -->
+                    <div class="audit-timeline-container glass-panel">
+                        <div id="audit-timeline" class="audit-timeline">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL: INVITE / CREATE USER -->
+    <div id="invite-user-modal" class="modal-backdrop hidden">
+        <div class="modal-card glass-panel">
+            <div class="modal-header">
+                <h3><i data-lucide="user-plus"></i> Crear e Invitar Nuevo Usuario</h3>
+                <button class="btn-close" onclick="closeInviteUserModal()">&times;</button>
+            </div>
+            <form id="invite-user-form" onsubmit="handleCreateUserAdmin(event)">
+                <div class="input-group">
+                    <label>Nombre Completo</label>
+                    <input type="text" id="inv-fullname" placeholder="Ej: Roberto Silva" required>
+                </div>
+                <div class="input-group">
+                    <label>Nombre de Usuario</label>
+                    <input type="text" id="inv-username" placeholder="Ej: rsilva" required>
+                </div>
+                <div class="input-group">
+                    <label>Correo Electrónico</label>
+                    <input type="email" id="inv-email" placeholder="rsilva@empresa.com" required>
+                </div>
+                <div class="input-group">
+                    <label>Contraseña Inicial</label>
+                    <input type="text" id="inv-password" value="User123!" required>
+                </div>
+                <div class="input-group">
+                    <label>Rol Asignado</label>
+                    <select id="inv-role">
+                        <option value="USER">Usuario Estándar (Ver y Editar)</option>
+                        <option value="ADMIN">Administrador (Control Total)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="inv-avatar">Foto de Perfil (Opcional)</label>
+                    <input type="file" id="inv-avatar" accept="image/*">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeInviteUserModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i data-lucide="check"></i> Crear Usuario</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- USER PROFILE MODAL -->
+    <div id="user-profile-modal" class="modal-backdrop hidden">
+        <div class="auth-card glass-panel" style="max-width: 400px; text-align: center; position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="user-check" style="color: var(--primary);"></i> Perfil de Usuario
+                </h3>
+                <button type="button" class="btn btn-icon btn-secondary btn-sm" onclick="closeUserProfileModal()" title="Cerrar">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+
+            <!-- Profile Picture Avatar -->
+            <div style="position: relative; width: 100px; height: 100px; margin: 0 auto 16px auto;">
+                <div id="profile-modal-avatar" class="avatar avatar-lg" style="width: 100px; height: 100px; font-size: 2.6rem; border: 3px solid var(--primary); box-shadow: var(--shadow-md); overflow: hidden;">
+                    A
+                </div>
+                <button type="button" class="btn btn-icon btn-primary" onclick="triggerAvatarFileInput()" style="position: absolute; bottom: -4px; right: -4px; width: 34px; height: 34px; border-radius: 50%; padding: 0;" title="Cambiar foto de perfil">
+                    <i data-lucide="camera" style="width: 16px; height: 16px;"></i>
+                </button>
+            </div>
+
+            <h3 id="profile-modal-name" style="font-size: 1.3rem; margin: 0 0 2px 0;">Nombre Usuario</h3>
+            <p id="profile-modal-username" style="color: var(--text-muted); font-size: 0.88rem; margin: 0 0 14px 0;">@username</p>
+            
+            <div style="display: flex; justify-content: center; gap: 8px; margin-bottom: 20px;">
+                <span id="profile-modal-role" class="badge badge-admin">ADMINISTRADOR</span>
+                <span id="profile-modal-status" class="badge badge-success">ACTIVO</span>
+            </div>
+
+            <div class="glass-panel" style="padding: 14px; text-align: left; font-size: 0.88rem; display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; background: rgba(0,0,0,0.03);">
+                <div><strong>Correo:</strong> <span id="profile-modal-email">email@ejemplo.com</span></div>
+                <div><strong>Fecha de Registro:</strong> <span id="profile-modal-created">-</span></div>
+                <div><strong>Planos Editados:</strong> <span id="profile-modal-edits">0</span></div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button type="button" class="btn btn-primary btn-block" onclick="triggerAvatarFileInput()">
+                    <i data-lucide="image"></i> Subir / Cambiar Foto de Perfil
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-block" onclick="closeUserProfileModal(); handleLogout();">
+                    <i data-lucide="log-out"></i> Cerrar Sesión
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Input for quick avatar updates -->
+    <input type="file" id="change-avatar-input" accept="image/*" class="hidden-input" onchange="handleUserAvatarChange(event)">
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="js/mock-data.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/pdf-editor.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
