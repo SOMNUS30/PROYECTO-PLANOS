@@ -2,9 +2,11 @@
    ECOSOL PLANOS - Render Server Central Backend Synchronizer
    ========================================================================== */
 
-const API_BASE = window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1") || window.location.origin.includes("onrender.com")
+const RENDER_BACKEND = "https://proyecto-planos.onrender.com";
+
+const API_BASE = (window.location.origin && window.location.origin.includes("onrender.com"))
     ? window.location.origin
-    : "https://ecosol-planos.onrender.com";
+    : RENDER_BACKEND;
 
 let isSyncing = false;
 
