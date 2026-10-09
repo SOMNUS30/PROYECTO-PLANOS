@@ -1,8 +1,28 @@
-/* ==========================================================================
-   PlanosDoc Pro - Main Application Router & Event Handlers
-   ========================================================================== */
+// Clean legacy heavy pdfDataUrl strings from LocalStorage if present to avoid 5MB quota limits
+function cleanupLocalStorageQuota() {
+    try {
+        const raw = localStorage.getItem("planos_documents");
+        if (!raw) return;
+        let docs = JSON.parse(raw);
+        let cleaned = false;
+        docs = docs.map(d => {
+            if (d.pdfDataUrl) {
+                delete d.pdfDataUrl;
+                cleaned = true;
+            }
+            return d;
+        });
+        if (cleaned) {
+            localStorage.setItem("planos_documents", JSON.stringify(docs));
+        }
+    } catch (e) {
+        console.warn("Storage cleanup warning:", e);
+    }
+}
 
 document.addEventListener("DOMContentLoaded", () => {
+    cleanupLocalStorageQuota();
+
     // Initialize Theme (Default White / Light Theme)
     initTheme();
 
@@ -306,17 +326,6 @@ function processPdfFile(file) {
             const docId = "doc_" + Date.now();
             const sizeFormatted = (file.size / (1024 * 1024)).toFixed(1) + " MB";
 
-            // Convert ArrayBuffer to Data URL for instant cross-device PDF rendering
-            let pdfDataUrl = null;
-            try {
-                const b64 = window.arrayBufferToBase64 
-                    ? window.arrayBufferToBase64(arrayBuffer)
-                    : btoa(String.fromCharCode.apply(null, new Uint8Array(arrayBuffer)));
-                pdfDataUrl = "data:application/pdf;base64," + b64;
-            } catch (e) {
-                console.warn("No se pudo generar pdfDataUrl inline:", e);
-            }
-
             // Store raw PDF binary into IndexedDB & Cloud Storage
             if (window.savePdfBinary) {
                 await window.savePdfBinary(docId, arrayBuffer);
@@ -342,13 +351,19 @@ function processPdfFile(file) {
                 fileSize: sizeFormatted,
                 hasBinary: true,
                 thumbnailUrl: thumbnailUrl,
-                pdfDataUrl: pdfDataUrl,
                 annotations: []
             };
 
             const docs = JSON.parse(localStorage.getItem("planos_documents") || "[]");
             docs.unshift(newDoc);
-            saveDocumentsToStorage(docs);
+
+            try {
+                saveDocumentsToStorage(docs);
+            } catch (quotaErr) {
+                // If LocalStorage is full, clean legacy data and retry
+                cleanupLocalStorageQuota();
+                saveDocumentsToStorage(docs);
+            }
 
             addAuditLog("PDF_UPLOAD", `Nuevo PDF subido: ${file.name}`, `Tamaño: ${sizeFormatted} por ${user?.name || 'Usuario'}`);
 
