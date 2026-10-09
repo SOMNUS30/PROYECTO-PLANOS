@@ -34,7 +34,7 @@ function addAuditLog(actionType, description, details = "") {
 }
 
 function checkSessionOnLoad() {
-    const savedSession = localStorage.getItem("planos_active_session");
+    const savedSession = sessionStorage.getItem("planos_active_session");
     if (savedSession) {
         try {
             const user = JSON.parse(savedSession);
@@ -51,6 +51,10 @@ function checkSessionOnLoad() {
             console.error("Error restoration session", e);
         }
     }
+    // Clear old persistent sessions and demand login credentials
+    localStorage.removeItem("planos_active_session");
+    sessionStorage.removeItem("planos_active_session");
+    currentUser = null;
     openAuthModal();
 }
 
@@ -117,9 +121,10 @@ function handleLogin(event) {
     user.lastLogin = new Date().toISOString();
     saveUsersToStorage(users);
 
-    // Set Active Session
+    // Set Active Session (Session-scoped for security)
     currentUser = user;
-    localStorage.setItem("planos_active_session", JSON.stringify(user));
+    sessionStorage.setItem("planos_active_session", JSON.stringify(user));
+    localStorage.removeItem("planos_active_session");
 
     // Audit Log
     addAuditLog("LOGIN", "Conexión / Inicio de Sesión exitoso", `Usuario ${user.name} (${user.role}) inició sesión`);
@@ -274,6 +279,7 @@ function handleLogout() {
         addAuditLog("LOGOUT", "Cierre de sesión de usuario", `Usuario ${currentUser.username} cerró sesión`);
     }
     currentUser = null;
+    sessionStorage.removeItem("planos_active_session");
     localStorage.removeItem("planos_active_session");
     openAuthModal();
     showToast("Sesión cerrada correctamente.", "info");
@@ -391,7 +397,8 @@ async function handleUserAvatarChange(event) {
         }
 
         // Update active session
-        localStorage.setItem("planos_active_session", JSON.stringify(currentUser));
+        sessionStorage.setItem("planos_active_session", JSON.stringify(currentUser));
+        localStorage.removeItem("planos_active_session");
 
         updateUserUI();
 
