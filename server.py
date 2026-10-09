@@ -126,20 +126,39 @@ class RenderServerHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/upload_pdf":
-            doc_id = body.get("docId")
-            pdf_base64 = body.get("base64")
-            if doc_id and pdf_base64:
+            query_components = urllib.parse.parse_qs(parsed.query)
+            doc_id = None
+            if "docId" in query_components:
+                doc_id = query_components["docId"][0]
+            elif "doc_id" in query_components:
+                doc_id = query_components["doc_id"][0]
+
+            if not doc_id and body:
+                doc_id = body.get("docId")
+
+            pdf_bytes = None
+            if body and body.get("base64"):
                 import base64
-                pdf_bytes = base64.b64decode(pdf_base64)
+                pdf_bytes = base64.b64decode(body.get("base64"))
+            elif post_data and len(post_data) > 0:
+                pdf_bytes = post_data
+
+            if doc_id and pdf_bytes:
+                import base64
                 pdf_path = os.path.join(UPLOADS_DIR, f"{doc_id}.pdf")
                 b64_path = os.path.join(DATA_DIR, f"pdf_{doc_id}.b64")
 
                 with open(pdf_path, "wb") as f:
                     f.write(pdf_bytes)
-                with open(b64_path, "w", encoding="utf-8") as f:
-                    f.write(pdf_base64)
 
-                self.send_json_response({"status": "ok", "message": "PDF guardado en servidor Render", "url": f"/uploads/{doc_id}.pdf"})
+                try:
+                    b64_str = base64.b64encode(pdf_bytes).decode("utf-8")
+                    with open(b64_path, "w", encoding="utf-8") as f:
+                        f.write(b64_str)
+                except Exception as e:
+                    print(f"Error guardando b64: {e}")
+
+                self.send_json_response({"status": "ok", "message": "PDF guardado en el servidor Render", "url": f"/uploads/{doc_id}.pdf"})
             else:
                 self.send_json_response({"error": "Datos PDF incompletos"}, 400)
             return

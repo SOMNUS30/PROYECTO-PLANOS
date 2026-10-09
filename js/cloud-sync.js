@@ -25,12 +25,23 @@ window.arrayBufferToBase64 = arrayBufferToBase64;
 // Upload Raw PDF Binary to Render Server
 async function syncPdfBinaryToCloud(docId, arrayBuffer) {
     try {
-        const base64Data = arrayBufferToBase64(arrayBuffer);
-        await fetch(`${API_BASE}/api/upload_pdf`, {
+        // Send raw binary ArrayBuffer directly for ultra-fast, lightweight upload
+        const res = await fetch(`${API_BASE}/api/upload_pdf?docId=${docId}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ docId: docId, base64: base64Data })
+            headers: { "Content-Type": "application/pdf" },
+            body: arrayBuffer
         });
+        if (res.ok) {
+            console.log("PDF binario subido y guardado exitosamente en Render:", docId);
+        } else {
+            // Fallback to Base64 payload if raw binary POST is blocked
+            const base64Data = arrayBufferToBase64(arrayBuffer);
+            await fetch(`${API_BASE}/api/upload_pdf`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ docId: docId, base64: base64Data })
+            });
+        }
     } catch (err) {
         console.warn("Error enviando PDF al servidor Render:", err);
     }
@@ -72,12 +83,19 @@ async function syncUsersToCloud(users) {
 // Sync Documents Array to Render Server
 async function syncDocumentsToCloud(documents) {
     try {
+        // Strip large inline pdfDataUrl from metadata payload so /api/documents stays lightweight & fast (~20KB)
+        const cleanDocs = documents.map(doc => {
+            const { pdfDataUrl, ...rest } = doc;
+            return rest;
+        });
         await fetch(`${API_BASE}/api/documents`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(documents)
+            body: JSON.stringify(cleanDocs)
         });
-    } catch (err) {}
+    } catch (err) {
+        console.warn("Error enviando lista de documentos a Render:", err);
+    }
 }
 
 // Sync Audit Logs Array to Render Server
