@@ -306,12 +306,23 @@ function processPdfFile(file) {
             const docId = "doc_" + Date.now();
             const sizeFormatted = (file.size / (1024 * 1024)).toFixed(1) + " MB";
 
+            // Convert ArrayBuffer to Data URL for instant cross-device PDF rendering
+            let pdfDataUrl = null;
+            try {
+                const b64 = window.arrayBufferToBase64 
+                    ? window.arrayBufferToBase64(arrayBuffer)
+                    : btoa(String.fromCharCode.apply(null, new Uint8Array(arrayBuffer)));
+                pdfDataUrl = "data:application/pdf;base64," + b64;
+            } catch (e) {
+                console.warn("No se pudo generar pdfDataUrl inline:", e);
+            }
+
             // Store raw PDF binary into IndexedDB & Cloud Storage
             if (window.savePdfBinary) {
                 await window.savePdfBinary(docId, arrayBuffer);
             }
             if (typeof syncPdfBinaryToCloud === "function") {
-                syncPdfBinaryToCloud(docId, arrayBuffer);
+                await syncPdfBinaryToCloud(docId, arrayBuffer);
             }
 
             // Generate real PDF page 1 thumbnail preview
@@ -331,6 +342,7 @@ function processPdfFile(file) {
                 fileSize: sizeFormatted,
                 hasBinary: true,
                 thumbnailUrl: thumbnailUrl,
+                pdfDataUrl: pdfDataUrl,
                 annotations: []
             };
 

@@ -10,16 +10,17 @@ const API_BASE = (window.location.origin && window.location.origin.includes("onr
 
 let isSyncing = false;
 
-// ArrayBuffer to Base64
+// ArrayBuffer to Base64 (Chunked to prevent call stack limits)
 function arrayBufferToBase64(buffer) {
     let binary = '';
     const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
     }
     return window.btoa(binary);
 }
+window.arrayBufferToBase64 = arrayBufferToBase64;
 
 // Upload Raw PDF Binary to Render Server
 async function syncPdfBinaryToCloud(docId, arrayBuffer) {
@@ -38,13 +39,18 @@ async function syncPdfBinaryToCloud(docId, arrayBuffer) {
 // Download Raw PDF Binary from Render Server
 async function fetchPdfBinaryFromCloud(docId) {
     try {
-        const res = await fetch(`${API_BASE}/uploads/${docId}.pdf`);
+        let res = await fetch(`${API_BASE}/api/pdf_binary/${docId}`);
+        if (!res.ok) {
+            res = await fetch(`${API_BASE}/uploads/${docId}.pdf`);
+        }
         if (res.ok) {
             const buffer = await res.arrayBuffer();
-            if (window.savePdfBinary) {
-                await window.savePdfBinary(docId, buffer);
+            if (buffer && buffer.byteLength > 0) {
+                if (window.savePdfBinary) {
+                    await window.savePdfBinary(docId, buffer);
+                }
+                return buffer;
             }
-            return buffer;
         }
     } catch (err) {
         console.warn("Error descargando PDF del servidor Render:", err);
@@ -105,8 +111,27 @@ async function fetchCloudData() {
 
         if (docsRes && docsRes.ok) {
             const cloudDocs = await docsRes.json();
-            if (Array.isArray(cloudDocs) && cloudDocs.length > 0) {
-                localStorage.setItem("planos_documents", JSON.stringify(cloudDocs));
+            if (Array.isArray(cloudDocs)) {
+                const localDocs = JSON.parse(localStorage.getItem("planos_documents") || "[]");
+                const docMap = new Map();
+
+                // Load cloud documents first
+                cloudDocs.forEach(d => docMap.set(d.id, d));
+
+                // Merge local documents that might not have synced yet
+                localDocs.forEach(d => {
+                    if (!docMap.has(d.id)) {
+                        docMap.set(d.id, d);
+                    }
+                });
+
+                const mergedDocs = Array.from(docMap.values());
+                localStorage.setItem("planos_documents", JSON.stringify(mergedDocs));
+
+                // If local had unsynced documents, push merged back to cloud
+                if (mergedDocs.length > cloudDocs.length) {
+                    syncDocumentsToCloud(mergedDocs);
+                }
             }
         }
 

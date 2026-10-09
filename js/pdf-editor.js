@@ -873,7 +873,8 @@ function saveCurrentEdits() {
         const uIdx = users.findIndex(u => u.id === user.id);
         if (uIdx !== -1) {
             users[uIdx].editsCount = (users[uIdx].editsCount || 0) + 1;
-            localStorage.setItem("planos_users", JSON.stringify(users));
+            if (typeof saveUsersToStorage === "function") saveUsersToStorage(users);
+            else localStorage.setItem("planos_users", JSON.stringify(users));
         }
 
         // Add Audit Log Entry

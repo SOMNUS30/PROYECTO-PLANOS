@@ -53,6 +53,39 @@ class RenderServerHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/api/audit_logs":
             self.send_json_response(read_json_file("audit_logs.json", []))
             return
+        elif path.startswith("/api/pdf_binary/"):
+            doc_id = path.replace("/api/pdf_binary/", "")
+            pdf_path = os.path.join(UPLOADS_DIR, f"{doc_id}.pdf")
+            b64_path = os.path.join(DATA_DIR, f"pdf_{doc_id}.b64")
+
+            pdf_bytes = None
+            if os.path.exists(pdf_path):
+                try:
+                    with open(pdf_path, "rb") as f:
+                        pdf_bytes = f.read()
+                except Exception:
+                    pass
+
+            if not pdf_bytes and os.path.exists(b64_path):
+                try:
+                    import base64
+                    with open(b64_path, "r", encoding="utf-8") as f:
+                        b64_str = f.read()
+                    pdf_bytes = base64.b64decode(b64_str)
+                except Exception:
+                    pass
+
+            if pdf_bytes:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/pdf")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.end_headers()
+                self.wfile.write(pdf_bytes)
+                return
+            else:
+                self.send_json_response({"error": "PDF no encontrado en servidor"}, 404)
+                return
 
         super().do_GET()
 
@@ -99,8 +132,13 @@ class RenderServerHandler(http.server.SimpleHTTPRequestHandler):
                 import base64
                 pdf_bytes = base64.b64decode(pdf_base64)
                 pdf_path = os.path.join(UPLOADS_DIR, f"{doc_id}.pdf")
+                b64_path = os.path.join(DATA_DIR, f"pdf_{doc_id}.b64")
+
                 with open(pdf_path, "wb") as f:
                     f.write(pdf_bytes)
+                with open(b64_path, "w", encoding="utf-8") as f:
+                    f.write(pdf_base64)
+
                 self.send_json_response({"status": "ok", "message": "PDF guardado en servidor Render", "url": f"/uploads/{doc_id}.pdf"})
             else:
                 self.send_json_response({"error": "Datos PDF incompletos"}, 400)
