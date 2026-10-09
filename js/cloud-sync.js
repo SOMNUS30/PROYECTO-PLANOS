@@ -1,12 +1,13 @@
 /* ==========================================================================
-   ECOSOL PLANOS - Firebase Realtime Cloud Engine & PDF Binary Storage
+   ECOSOL PLANOS - Real-time Multi-Device Cloud Synchronization System
    ========================================================================== */
 
-const CLOUD_DB_URL = "https://ecosol-planos-app-default-rtdb.firebaseio.com";
+// Primary & Fallback Cloud Database Endpoints
+const PRIMARY_CLOUD_DB = "https://crudcrud.com/api/9e68681e40f749a5af0380ea67e003a9";
+const FIREBASE_CLOUD_DB = "https://ecosol-planos-app-default-rtdb.firebaseio.com";
 
 let isSyncing = false;
 
-// Helper to normalize Firebase response (converts objects to arrays)
 function normalizeArray(data) {
     if (!data) return [];
     if (Array.isArray(data)) return data.filter(Boolean);
@@ -14,7 +15,7 @@ function normalizeArray(data) {
     return [];
 }
 
-// 1. ArrayBuffer to Base64 String
+// 1. ArrayBuffer to Base64
 function arrayBufferToBase64(buffer) {
     let binary = '';
     const bytes = new Uint8Array(buffer);
@@ -25,7 +26,7 @@ function arrayBufferToBase64(buffer) {
     return window.btoa(binary);
 }
 
-// 2. Base64 String to ArrayBuffer
+// 2. Base64 to ArrayBuffer
 function base64ToArrayBuffer(base64) {
     const binaryString = window.atob(base64);
     const len = binaryString.length;
@@ -40,12 +41,21 @@ function base64ToArrayBuffer(base64) {
 async function syncPdfBinaryToCloud(docId, arrayBuffer) {
     try {
         const base64Data = arrayBufferToBase64(arrayBuffer);
-        await fetch(`${CLOUD_DB_URL}/pdf_binaries/${docId}.json`, {
+        const payload = JSON.stringify({ docId: docId, base64: base64Data, updatedAt: new Date().toISOString() });
+        
+        await fetch(`${PRIMARY_CLOUD_DB}/pdf_binaries`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: payload
+        }).catch(() => null);
+
+        await fetch(`${FIREBASE_CLOUD_DB}/pdf_binaries/${docId}.json`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ base64: base64Data, updatedAt: new Date().toISOString() })
-        });
-        console.log("PDF Binario sincronizado en la nube para:", docId);
+            body: payload
+        }).catch(() => null);
+
+        console.log("PDF Binario enviado a la nube para:", docId);
     } catch (err) {
         console.warn("Error al subir PDF a la nube:", err);
     }
@@ -54,14 +64,25 @@ async function syncPdfBinaryToCloud(docId, arrayBuffer) {
 // 4. Download Raw PDF Binary from Cloud Storage
 async function fetchPdfBinaryFromCloud(docId) {
     try {
-        const res = await fetch(`${CLOUD_DB_URL}/pdf_binaries/${docId}.json`);
-        if (res.ok) {
+        // Try Primary Cloud DB
+        let res = await fetch(`${PRIMARY_CLOUD_DB}/pdf_binaries`).catch(() => null);
+        if (res && res.ok) {
+            const list = await res.json();
+            const found = list.find(item => item.docId === docId);
+            if (found && found.base64) {
+                const buffer = base64ToArrayBuffer(found.base64);
+                if (window.savePdfBinary) await window.savePdfBinary(docId, buffer);
+                return buffer;
+            }
+        }
+
+        // Try Firebase Cloud DB
+        res = await fetch(`${FIREBASE_CLOUD_DB}/pdf_binaries/${docId}.json`).catch(() => null);
+        if (res && res.ok) {
             const data = await res.json();
             if (data && data.base64) {
                 const buffer = base64ToArrayBuffer(data.base64);
-                if (window.savePdfBinary) {
-                    await window.savePdfBinary(docId, buffer);
-                }
+                if (window.savePdfBinary) await window.savePdfBinary(docId, buffer);
                 return buffer;
             }
         }
@@ -74,21 +95,27 @@ async function fetchPdfBinaryFromCloud(docId) {
 // 5. Delete PDF Binary from Cloud
 async function deletePdfBinaryFromCloud(docId) {
     try {
-        await fetch(`${CLOUD_DB_URL}/pdf_binaries/${docId}.json`, {
-            method: "DELETE"
-        });
-    } catch (err) {
-        console.warn("Error al eliminar PDF de la nube:", err);
-    }
+        await fetch(`${FIREBASE_CLOUD_DB}/pdf_binaries/${docId}.json`, { method: "DELETE" }).catch(() => null);
+    } catch (err) {}
 }
 
 // 6. Sync Users Array to Cloud
 async function syncUsersToCloud(users) {
     try {
-        await fetch(`${CLOUD_DB_URL}/users.json`, {
+        const payload = JSON.stringify(users);
+        await fetch(`${FIREBASE_CLOUD_DB}/users.json`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(users)
+            body: payload
+        }).catch(() => null);
+
+        // Also POST to primary REST DB if needed
+        users.forEach(async (u) => {
+            await fetch(`${PRIMARY_CLOUD_DB}/users`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(u)
+            }).catch(() => null);
         });
     } catch (err) {
         console.warn("Error al sincronizar usuarios en la nube:", err);
@@ -98,11 +125,12 @@ async function syncUsersToCloud(users) {
 // 7. Sync Documents Array to Cloud
 async function syncDocumentsToCloud(documents) {
     try {
-        await fetch(`${CLOUD_DB_URL}/documents.json`, {
+        const payload = JSON.stringify(documents);
+        await fetch(`${FIREBASE_CLOUD_DB}/documents.json`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(documents)
-        });
+            body: payload
+        }).catch(() => null);
     } catch (err) {
         console.warn("Error al sincronizar documentos en la nube:", err);
     }
@@ -111,11 +139,12 @@ async function syncDocumentsToCloud(documents) {
 // 8. Sync Audit Logs Array to Cloud
 async function syncAuditLogsToCloud(logs) {
     try {
-        await fetch(`${CLOUD_DB_URL}/audit_logs.json`, {
+        const payload = JSON.stringify(logs);
+        await fetch(`${FIREBASE_CLOUD_DB}/audit_logs.json`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(logs)
-        });
+            body: payload
+        }).catch(() => null);
     } catch (err) {
         console.warn("Error al sincronizar auditoría en la nube:", err);
     }
@@ -126,54 +155,66 @@ async function fetchCloudData() {
     if (isSyncing) return;
     isSyncing = true;
     try {
-        const [usersRes, docsRes, logsRes] = await Promise.all([
-            fetch(`${CLOUD_DB_URL}/users.json`),
-            fetch(`${CLOUD_DB_URL}/documents.json`),
-            fetch(`${CLOUD_DB_URL}/audit_logs.json`)
-        ]);
+        // Try Firebase & Primary REST endpoints
+        let cloudUsers = [];
+        let cloudDocs = [];
+        let cloudLogs = [];
 
-        if (usersRes.ok) {
-            const raw = await usersRes.json();
-            const cloudUsers = normalizeArray(raw);
-            if (cloudUsers.length > 0) {
-                localStorage.setItem("planos_users", JSON.stringify(cloudUsers));
-                
-                const savedSession = localStorage.getItem("planos_active_session");
-                if (savedSession) {
-                    try {
-                        const currentUser = JSON.parse(savedSession);
-                        const updatedUser = cloudUsers.find(u => u.id === currentUser.id);
-                        if (updatedUser) {
-                            localStorage.setItem("planos_active_session", JSON.stringify(updatedUser));
-                        }
-                    } catch (e) {}
-                }
-            } else {
-                const localUsers = JSON.parse(localStorage.getItem("planos_users") || "[]");
-                if (localUsers.length > 0) syncUsersToCloud(localUsers);
+        // 1. Fetch Users
+        let res = await fetch(`${FIREBASE_CLOUD_DB}/users.json`).catch(() => null);
+        if (res && res.ok) {
+            const raw = await res.json();
+            cloudUsers = normalizeArray(raw);
+        }
+        if (cloudUsers.length === 0) {
+            res = await fetch(`${PRIMARY_CLOUD_DB}/users`).catch(() => null);
+            if (res && res.ok) {
+                const raw = await res.json();
+                cloudUsers = normalizeArray(raw);
             }
         }
 
-        if (docsRes.ok) {
-            const raw = await docsRes.json();
-            const cloudDocs = normalizeArray(raw);
-            if (cloudDocs.length > 0) {
-                localStorage.setItem("planos_documents", JSON.stringify(cloudDocs));
-            } else {
-                const localDocs = JSON.parse(localStorage.getItem("planos_documents") || "[]");
-                if (localDocs.length > 0) syncDocumentsToCloud(localDocs);
+        if (cloudUsers.length > 0) {
+            localStorage.setItem("planos_users", JSON.stringify(cloudUsers));
+            const savedSession = localStorage.getItem("planos_active_session");
+            if (savedSession) {
+                try {
+                    const currentUser = JSON.parse(savedSession);
+                    const updatedUser = cloudUsers.find(u => u.id === currentUser.id || u.username === currentUser.username);
+                    if (updatedUser) {
+                        localStorage.setItem("planos_active_session", JSON.stringify(updatedUser));
+                    }
+                } catch (e) {}
             }
+        } else {
+            const localUsers = JSON.parse(localStorage.getItem("planos_users") || "[]");
+            if (localUsers.length > 0) syncUsersToCloud(localUsers);
         }
 
-        if (logsRes.ok) {
-            const raw = await logsRes.json();
-            const cloudLogs = normalizeArray(raw);
-            if (cloudLogs.length > 0) {
-                localStorage.setItem("planos_audit_logs", JSON.stringify(cloudLogs));
-            } else {
-                const localLogs = JSON.parse(localStorage.getItem("planos_audit_logs") || "[]");
-                if (localLogs.length > 0) syncAuditLogsToCloud(localLogs);
-            }
+        // 2. Fetch Documents
+        res = await fetch(`${FIREBASE_CLOUD_DB}/documents.json`).catch(() => null);
+        if (res && res.ok) {
+            const raw = await res.json();
+            cloudDocs = normalizeArray(raw);
+        }
+        if (cloudDocs.length > 0) {
+            localStorage.setItem("planos_documents", JSON.stringify(cloudDocs));
+        } else {
+            const localDocs = JSON.parse(localStorage.getItem("planos_documents") || "[]");
+            if (localDocs.length > 0) syncDocumentsToCloud(localDocs);
+        }
+
+        // 3. Fetch Audit Logs
+        res = await fetch(`${FIREBASE_CLOUD_DB}/audit_logs.json`).catch(() => null);
+        if (res && res.ok) {
+            const raw = await res.json();
+            cloudLogs = normalizeArray(raw);
+        }
+        if (cloudLogs.length > 0) {
+            localStorage.setItem("planos_audit_logs", JSON.stringify(cloudLogs));
+        } else {
+            const localLogs = JSON.parse(localStorage.getItem("planos_audit_logs") || "[]");
+            if (localLogs.length > 0) syncAuditLogsToCloud(localLogs);
         }
 
         // Re-render UI views
@@ -192,10 +233,6 @@ async function fetchCloudData() {
 // 10. Initialize Cloud Sync & Interval Polling
 function initCloudSync() {
     fetchCloudData();
-
-    // Refresh every 4 seconds across devices
     setInterval(fetchCloudData, 4000);
-
-    // Refresh on focus
     window.addEventListener("focus", fetchCloudData);
 }
