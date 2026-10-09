@@ -109,6 +109,17 @@ async function syncAuditLogsToCloud(logs) {
     } catch (err) {}
 }
 
+// Delete Raw PDF Binary from Render Server
+async function deletePdfBinaryFromCloud(docId) {
+    try {
+        await fetch(`${API_BASE}/api/delete_pdf?docId=${docId}`, {
+            method: "DELETE"
+        });
+    } catch (err) {
+        console.warn("Error eliminando PDF del servidor Render:", err);
+    }
+}
+
 // Fetch All Central Data from Render Server
 async function fetchCloudData() {
     if (isSyncing) return;
@@ -130,26 +141,7 @@ async function fetchCloudData() {
         if (docsRes && docsRes.ok) {
             const cloudDocs = await docsRes.json();
             if (Array.isArray(cloudDocs)) {
-                const localDocs = JSON.parse(localStorage.getItem("planos_documents") || "[]");
-                const docMap = new Map();
-
-                // Load cloud documents first
-                cloudDocs.forEach(d => docMap.set(d.id, d));
-
-                // Merge local documents that might not have synced yet
-                localDocs.forEach(d => {
-                    if (!docMap.has(d.id)) {
-                        docMap.set(d.id, d);
-                    }
-                });
-
-                const mergedDocs = Array.from(docMap.values());
-                localStorage.setItem("planos_documents", JSON.stringify(mergedDocs));
-
-                // If local had unsynced documents, push merged back to cloud
-                if (mergedDocs.length > cloudDocs.length) {
-                    syncDocumentsToCloud(mergedDocs);
-                }
+                localStorage.setItem("planos_documents", JSON.stringify(cloudDocs));
             }
         }
 

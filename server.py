@@ -163,13 +163,41 @@ class RenderServerHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json_response({"error": "Datos PDF incompletos"}, 400)
             return
 
+        elif path == "/api/delete_pdf":
+            query_components = urllib.parse.parse_qs(parsed.query)
+            doc_id = None
+            if "docId" in query_components:
+                doc_id = query_components["docId"][0]
+            elif "doc_id" in query_components:
+                doc_id = query_components["doc_id"][0]
+            if not doc_id and body:
+                doc_id = body.get("docId")
+
+            if doc_id:
+                pdf_path = os.path.join(UPLOADS_DIR, f"{doc_id}.pdf")
+                b64_path = os.path.join(DATA_DIR, f"pdf_{doc_id}.b64")
+                if os.path.exists(pdf_path):
+                    try:
+                        os.remove(pdf_path)
+                    except Exception:
+                        pass
+                if os.path.exists(b64_path):
+                    try:
+                        os.remove(b64_path)
+                    except Exception:
+                        pass
+                self.send_json_response({"status": "ok", "message": "PDF eliminado de la nube"})
+            else:
+                self.send_json_response({"error": "docId requerido"}, 400)
+            return
+
         self.send_json_response({"error": "Ruta no encontrada"}, 404)
 
     def send_json_response(self, data, code=200):
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
@@ -177,9 +205,12 @@ class RenderServerHandler(http.server.SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
+
+    def do_DELETE(self):
+        self.do_POST()
 
 if __name__ == "__main__":
     print("==================================================")
