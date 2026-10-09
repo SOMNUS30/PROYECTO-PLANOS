@@ -1,0 +1,2 @@
+# ECOSOL PLANOS Python Dependencies
+# Built-in standard library used (http.server, socketserver, json)
