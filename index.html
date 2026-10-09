@@ -154,12 +154,15 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="brand" onclick="navigateTo('documents')" style="cursor: pointer; display: flex; align-items: center; gap: 10px;" title="Ir a Mis Documentos">
-                    <img src="assets/ecosol-logo.png" alt="ECOSOL PLANOS" class="sidebar-logo-img" style="max-height: 46px; width: auto; object-fit: contain;" />
+                    <img src="assets/ecosol-logo.png" alt="ECOSOL PLANOS" class="sidebar-logo-img" style="max-height: 40px; width: auto; object-fit: contain;" />
                     <div class="brand-text">
                         <span class="brand-title" style="font-weight: 800; letter-spacing: 0.5px;">ECOSOL</span>
                         <span class="brand-tag" style="color: var(--primary); font-weight: 700;">PLANOS</span>
                     </div>
                 </div>
+                <button class="btn btn-icon sidebar-collapse-btn" onclick="toggleAppSidebar()" title="Ocultar Menú Lateral">
+                    <i data-lucide="panel-left-close" id="sidebar-toggle-icon-sidebar"></i>
+                </button>
             </div>
 
             <!-- Current User Info Widget -->
@@ -208,9 +211,10 @@
             <!-- TOP NAVBAR -->
             <header class="top-navbar glass-header">
                 <div class="navbar-left">
-                    <button class="btn btn-icon btn-secondary" onclick="toggleAppSidebar()" title="Ocultar/Mostrar Menú Lateral" style="margin-right: 10px;">
-                        <i data-lucide="menu"></i>
+                    <button class="toggle-sidebar-btn" onclick="toggleAppSidebar()" title="Ocultar/Mostrar Menú Lateral">
+                        <i data-lucide="menu" id="sidebar-toggle-icon"></i>
                     </button>
+                    <div class="nav-divider"></div>
                     <h1 id="page-title" class="page-title">
                         <i data-lucide="folder-open"></i> Mis Documentos y Planos
                     </h1>
@@ -665,6 +669,7 @@
 
     <!-- Scripts -->
     <script src="js/mock-data.js"></script>
+    <script src="js/cloud-sync.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/pdf-editor.js"></script>
     <script src="js/admin.js"></script>

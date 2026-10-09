@@ -14,6 +14,7 @@ function getUsersFromStorage() {
 
 function saveUsersToStorage(users) {
     localStorage.setItem("planos_users", JSON.stringify(users));
+    if (typeof syncUsersToCloud === "function") syncUsersToCloud(users);
 }
 
 function addAuditLog(actionType, description, details = "") {
@@ -29,6 +30,7 @@ function addAuditLog(actionType, description, details = "") {
     };
     logs.unshift(newLog); // latest on top
     localStorage.setItem("planos_audit_logs", JSON.stringify(logs));
+    if (typeof syncAuditLogsToCloud === "function") syncAuditLogsToCloud(logs);
 }
 
 function checkSessionOnLoad() {

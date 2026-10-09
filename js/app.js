@@ -6,6 +6,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // Initialize Theme (Default White / Light Theme)
     initTheme();
 
+    // Initialize Real-time Cloud Sync across all devices
+    if (typeof initCloudSync === "function") initCloudSync();
+
     // Initialize Lucide Icons
     if (window.lucide) lucide.createIcons();
 
@@ -168,7 +171,7 @@ function renderDocumentsLibrary() {
                             const dIdx = allDocs.findIndex(d => d.id === doc.id);
                             if (dIdx !== -1) {
                                 allDocs[dIdx].thumbnailUrl = thumb;
-                                localStorage.setItem("planos_documents", JSON.stringify(allDocs));
+                                saveDocumentsToStorage(allDocs);
                             }
                             const thumbEl = card.querySelector(".doc-thumbnail");
                             if (thumbEl) {
@@ -225,7 +228,7 @@ function deleteDocument(docId) {
     const docToDelete = docs.find(d => d.id === docId);
     docs = docs.filter(d => d.id !== docId);
 
-    localStorage.setItem("planos_documents", JSON.stringify(docs));
+    saveDocumentsToStorage(docs);
 
     if (window.deletePdfBinary) {
         deletePdfBinary(docId);
@@ -327,7 +330,7 @@ function processPdfFile(file) {
 
             const docs = JSON.parse(localStorage.getItem("planos_documents") || "[]");
             docs.unshift(newDoc);
-            localStorage.setItem("planos_documents", JSON.stringify(docs));
+            saveDocumentsToStorage(docs);
 
             addAuditLog("PDF_UPLOAD", `Nuevo PDF subido: ${file.name}`, `Tamaño: ${sizeFormatted} por ${user?.name || 'Usuario'}`);
 

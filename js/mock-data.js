@@ -174,6 +174,12 @@ const INITIAL_AUDIT_LOGS = [
     }
 ];
 
+// Document storage helper with cloud sync
+function saveDocumentsToStorage(docs) {
+    localStorage.setItem("planos_documents", JSON.stringify(docs));
+    if (typeof syncDocumentsToCloud === "function") syncDocumentsToCloud(docs);
+}
+
 // Initialize Storage Helper
 function initLocalStorage() {
     if (!localStorage.getItem("planos_users")) {

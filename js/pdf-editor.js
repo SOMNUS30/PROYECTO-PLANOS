@@ -856,7 +856,8 @@ function saveCurrentEdits() {
         docs[docIdx].editsCount = (docs[docIdx].editsCount || 0) + 1;
         docs[docIdx].lastEditedBy = user.username;
 
-        localStorage.setItem("planos_documents", JSON.stringify(docs));
+        if (typeof saveDocumentsToStorage === "function") saveDocumentsToStorage(docs);
+        else localStorage.setItem("planos_documents", JSON.stringify(docs));
         activeDocument = docs[docIdx];
 
         // Update User Edits Count
@@ -1036,11 +1037,14 @@ function toggleAppSidebar() {
 
 function toggleAppSidebarCollapse(collapse) {
     const sidebar = document.querySelector(".sidebar");
-    const icon = document.getElementById("sidebar-toggle-icon");
+    const icon1 = document.getElementById("sidebar-toggle-icon");
+    const icon2 = document.getElementById("sidebar-toggle-icon-sidebar");
     if (sidebar) {
         if (collapse) sidebar.classList.add("collapsed");
         else sidebar.classList.remove("collapsed");
-        if (icon) icon.setAttribute("data-lucide", collapse ? "panel-left-open" : "panel-left-close");
+        
+        if (icon1) icon1.setAttribute("data-lucide", collapse ? "panel-left-open" : "menu");
+        if (icon2) icon2.setAttribute("data-lucide", collapse ? "panel-left-open" : "panel-left-close");
         if (window.lucide) lucide.createIcons();
     }
 }
