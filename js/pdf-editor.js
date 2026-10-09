@@ -244,7 +244,12 @@ async function loadDocumentInEditor(docId) {
     document.body.classList.add("in-editor-mode");
 
     // Fetch binary buffer from IndexedDB first (no localStorage quota limit)
-    const binaryBuffer = await getPdfBinary(activeDocument.id);
+    let binaryBuffer = await getPdfBinary(activeDocument.id);
+    if (!binaryBuffer && typeof fetchPdfBinaryFromCloud === "function") {
+        showToast("Descargando plano PDF desde la nube...", "info");
+        binaryBuffer = await fetchPdfBinaryFromCloud(activeDocument.id);
+    }
+
     if (binaryBuffer) {
         loadPdfFromArrayBuffer(binaryBuffer);
     } else if (activeDocument.pdfDataUrl) {

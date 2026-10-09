@@ -1,12 +1,81 @@
 /* ==========================================================================
-   ECOSOL PLANOS - Cloud Sync Module (Real-time Cloud Database Integration)
+   ECOSOL PLANOS - Firebase Realtime Cloud Engine & PDF Binary Storage
    ========================================================================== */
 
 const CLOUD_DB_URL = "https://ecosol-planos-app-default-rtdb.firebaseio.com";
 
 let isSyncing = false;
 
-// Sync Users to Cloud
+// 1. ArrayBuffer to Base64 String
+function arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+}
+
+// 2. Base64 String to ArrayBuffer
+function base64ToArrayBuffer(base64) {
+    const binaryString = window.atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+}
+
+// 3. Upload Raw PDF Binary to Cloud Storage
+async function syncPdfBinaryToCloud(docId, arrayBuffer) {
+    try {
+        const base64Data = arrayBufferToBase64(arrayBuffer);
+        await fetch(`${CLOUD_DB_URL}/pdf_binaries/${docId}.json`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ base64: base64Data, updatedAt: new Date().toISOString() })
+        });
+        console.log("PDF Binario sincronizado en la nube para:", docId);
+    } catch (err) {
+        console.warn("Error al subir PDF a la nube:", err);
+    }
+}
+
+// 4. Download Raw PDF Binary from Cloud Storage
+async function fetchPdfBinaryFromCloud(docId) {
+    try {
+        const res = await fetch(`${CLOUD_DB_URL}/pdf_binaries/${docId}.json`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.base64) {
+                const buffer = base64ToArrayBuffer(data.base64);
+                // Save locally to IndexedDB for fast subsequent renders
+                if (window.savePdfBinary) {
+                    await window.savePdfBinary(docId, buffer);
+                }
+                return buffer;
+            }
+        }
+    } catch (err) {
+        console.warn("Error al descargar PDF de la nube:", err);
+    }
+    return null;
+}
+
+// 5. Delete PDF Binary from Cloud
+async function deletePdfBinaryFromCloud(docId) {
+    try {
+        await fetch(`${CLOUD_DB_URL}/pdf_binaries/${docId}.json`, {
+            method: "DELETE"
+        });
+    } catch (err) {
+        console.warn("Error al eliminar PDF de la nube:", err);
+    }
+}
+
+// 6. Sync Users Array to Cloud
 async function syncUsersToCloud(users) {
     try {
         await fetch(`${CLOUD_DB_URL}/users.json`, {
@@ -19,7 +88,7 @@ async function syncUsersToCloud(users) {
     }
 }
 
-// Sync Documents to Cloud
+// 7. Sync Documents Array to Cloud
 async function syncDocumentsToCloud(documents) {
     try {
         await fetch(`${CLOUD_DB_URL}/documents.json`, {
@@ -32,7 +101,7 @@ async function syncDocumentsToCloud(documents) {
     }
 }
 
-// Sync Audit Logs to Cloud
+// 8. Sync Audit Logs Array to Cloud
 async function syncAuditLogsToCloud(logs) {
     try {
         await fetch(`${CLOUD_DB_URL}/audit_logs.json`, {
@@ -41,11 +110,11 @@ async function syncAuditLogsToCloud(logs) {
             body: JSON.stringify(logs)
         });
     } catch (err) {
-        console.warn("Error al sincronizar historial de auditoría en la nube:", err);
+        console.warn("Error al sincronizar auditoría en la nube:", err);
     }
 }
 
-// Fetch Latest Data from Cloud & Merge LocalStorage
+// 9. Fetch All Cloud Data and Sync Local Storage
 async function fetchCloudData() {
     if (isSyncing) return;
     isSyncing = true;
@@ -61,7 +130,6 @@ async function fetchCloudData() {
             if (cloudUsers && Array.isArray(cloudUsers) && cloudUsers.length > 0) {
                 localStorage.setItem("planos_users", JSON.stringify(cloudUsers));
                 
-                // Update active user session if profile changed in cloud
                 const savedSession = localStorage.getItem("planos_active_session");
                 if (savedSession) {
                     try {
@@ -73,7 +141,6 @@ async function fetchCloudData() {
                     } catch (e) {}
                 }
             } else {
-                // If cloud is empty, seed initial users to cloud
                 const localUsers = JSON.parse(localStorage.getItem("planos_users") || "[]");
                 if (localUsers.length > 0) syncUsersToCloud(localUsers);
             }
@@ -99,27 +166,26 @@ async function fetchCloudData() {
             }
         }
 
-        // Re-render UI views if visible
+        // Re-render UI views
         if (typeof updateUserUI === "function") updateUserUI();
         if (typeof renderDocumentsLibrary === "function") renderDocumentsLibrary();
         if (typeof renderAdminDashboard === "function") renderAdminDashboard();
         if (typeof renderAuditLogs === "function") renderAuditLogs();
 
     } catch (err) {
-        console.warn("Error al descargar datos de la nube:", err);
+        console.warn("Error descargando datos de la nube:", err);
     } finally {
         isSyncing = false;
     }
 }
 
-// Initialize Cloud Sync & Background Refresh
+// 10. Initialize Cloud Sync & Interval Polling
 function initCloudSync() {
-    // Initial fetch from cloud
     fetchCloudData();
 
-    // Auto refresh every 6 seconds across devices
-    setInterval(fetchCloudData, 6000);
+    // Refresh every 5 seconds across devices
+    setInterval(fetchCloudData, 5000);
 
-    // Refresh when window gains focus
+    // Refresh on focus
     window.addEventListener("focus", fetchCloudData);
 }

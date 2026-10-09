@@ -233,6 +233,9 @@ function deleteDocument(docId) {
     if (window.deletePdfBinary) {
         deletePdfBinary(docId);
     }
+    if (typeof deletePdfBinaryFromCloud === "function") {
+        deletePdfBinaryFromCloud(docId);
+    }
 
     if (docToDelete) {
         addAuditLog("PDF_DELETE", `Plano eliminado: ${docToDelete.name}`, `Eliminado por el usuario ${getCurrentUser()?.username}`);
@@ -303,9 +306,12 @@ function processPdfFile(file) {
             const docId = "doc_" + Date.now();
             const sizeFormatted = (file.size / (1024 * 1024)).toFixed(1) + " MB";
 
-            // Store raw PDF binary into IndexedDB (No 5MB localStorage limit!)
+            // Store raw PDF binary into IndexedDB & Cloud Storage
             if (window.savePdfBinary) {
                 await window.savePdfBinary(docId, arrayBuffer);
+            }
+            if (typeof syncPdfBinaryToCloud === "function") {
+                syncPdfBinaryToCloud(docId, arrayBuffer);
             }
 
             // Generate real PDF page 1 thumbnail preview
