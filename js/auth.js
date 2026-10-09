@@ -93,12 +93,16 @@ function hideAuthAlert() {
     document.getElementById("auth-alert").classList.add("hidden");
 }
 
-function handleLogin(event) {
+async function handleLogin(event) {
     event.preventDefault();
     hideAuthAlert();
 
     const usernameInput = document.getElementById("login-username").value.trim().toLowerCase();
     const passwordInput = document.getElementById("login-password").value;
+
+    if (typeof fetchCloudData === "function") {
+        await fetchCloudData();
+    }
 
     const users = getUsersFromStorage();
     const user = users.find(u => (u.username.toLowerCase() === usernameInput || u.email.toLowerCase() === usernameInput) && u.passwordHash === passwordInput);
@@ -195,6 +199,10 @@ async function handleRegister(event) {
     const password = document.getElementById("reg-password").value;
     const inviteCode = document.getElementById("reg-invite-code").value.trim();
     const avatarInput = document.getElementById("reg-avatar");
+
+    if (typeof fetchCloudData === "function") {
+        await fetchCloudData();
+    }
 
     const users = getUsersFromStorage();
 
