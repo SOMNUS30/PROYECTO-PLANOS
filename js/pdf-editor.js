@@ -668,8 +668,10 @@ function handleCanvasMouseUp(e) {
     const newId = "ann_" + Date.now();
 
     if (activeTool === "rect") {
-        const w = Math.abs(endX - startX) || 120;
-        const h = Math.abs(endY - startY) || 80;
+        const dragW = Math.abs(endX - startX);
+        const dragH = Math.abs(endY - startY);
+        const w = (dragW < 5 && dragH < 5) ? 120 : dragW;
+        const h = (dragW < 5 && dragH < 5) ? 80 : dragH;
         annotations.push({
             id: newId,
             type: "rect",
@@ -683,7 +685,8 @@ function handleCanvasMouseUp(e) {
             strokeWidth: currentStrokeWidth
         });
     } else if (activeTool === "circle") {
-        const radius = Math.max(20, Math.hypot(endX - startX, endY - startY) / 2);
+        const dragDist = Math.hypot(endX - startX, endY - startY);
+        const radius = dragDist < 5 ? 35 : Math.max(2, dragDist / 2);
         annotations.push({
             id: newId,
             type: "circle",
