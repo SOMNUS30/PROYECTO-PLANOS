@@ -243,6 +243,20 @@ async function handleRegister(event) {
 
     addAuditLog("REGISTER", "Registro de nuevo usuario", `Se registró ${name} (${username}) con rol ${assignedRole}`);
 
+    // Reset input fields
+    const nameInput = document.getElementById("reg-name");
+    const usernameInputEl = document.getElementById("reg-username");
+    const emailInputEl = document.getElementById("reg-email");
+    const passwordInputEl = document.getElementById("reg-password");
+    const inviteCodeEl = document.getElementById("reg-invite-code");
+    
+    if (nameInput) nameInput.value = "";
+    if (usernameInputEl) usernameInputEl.value = "";
+    if (emailInputEl) emailInputEl.value = "";
+    if (passwordInputEl) passwordInputEl.value = "";
+    if (inviteCodeEl) inviteCodeEl.value = "";
+    if (avatarInput) avatarInput.value = "";
+
     closeAuthModal();
     updateUserUI();
     showToast(`¡Cuenta creada con éxito! Bienvenido, ${name}`, "success");

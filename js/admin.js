@@ -160,14 +160,22 @@ function closeInviteUserModal() {
 async function handleCreateUserAdmin(event) {
     event.preventDefault();
 
-    const name = document.getElementById("inv-fullname").value.trim();
-    const username = document.getElementById("inv-username").value.trim().toLowerCase();
-    const email = document.getElementById("inv-email").value.trim().toLowerCase();
-    const password = document.getElementById("inv-password").value;
-    const role = document.getElementById("inv-role").value;
+    const nameEl = document.getElementById("inv-fullname");
+    const usernameEl = document.getElementById("inv-username");
+    const emailEl = document.getElementById("inv-email");
+    const passwordEl = document.getElementById("inv-password");
+    const roleEl = document.getElementById("inv-role");
     const avatarInput = document.getElementById("inv-avatar");
 
-    const users = JSON.parse(localStorage.getItem("planos_users") || "[]");
+    const name = nameEl.value.trim();
+    const username = usernameEl.value.trim().toLowerCase();
+    const email = emailEl.value.trim().toLowerCase();
+    const password = passwordEl.value;
+    const role = roleEl.value;
+
+    const users = (typeof getUsersFromStorage === "function") 
+        ? getUsersFromStorage() 
+        : JSON.parse(localStorage.getItem("planos_users") || "[]");
 
     if (users.some(u => u.username === username || u.email === email)) {
         showToast("El usuario o correo electrónico ya existe.", "error");
@@ -198,9 +206,20 @@ async function handleCreateUserAdmin(event) {
     };
 
     users.push(newUser);
-    localStorage.setItem("planos_users", JSON.stringify(users));
+    if (typeof saveUsersToStorage === "function") {
+        saveUsersToStorage(users);
+    } else {
+        localStorage.setItem("planos_users", JSON.stringify(users));
+    }
 
     addAuditLog("USER_INVITE", `Nuevo usuario creado por administrador`, `Usuario: ${username} (${name}) con rol ${role}`);
+
+    // Reset input fields
+    if (nameEl) nameEl.value = "";
+    if (usernameEl) usernameEl.value = "";
+    if (emailEl) emailEl.value = "";
+    if (passwordEl) passwordEl.value = "";
+    if (avatarInput) avatarInput.value = "";
 
     closeInviteUserModal();
     showToast(`Usuario ${name} registrado e invitado con éxito!`, "success");
