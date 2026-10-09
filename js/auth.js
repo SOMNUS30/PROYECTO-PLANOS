@@ -68,16 +68,16 @@ function switchAuthTab(tab) {
     const loginBtn = document.getElementById("tab-login-btn");
     const regBtn = document.getElementById("tab-register-btn");
 
-    if (tab === 'login') {
-        loginForm.classList.add("active-form");
-        regForm.classList.remove("active-form");
-        loginBtn.classList.add("active");
-        regBtn.classList.remove("active");
+    if (tab === 'login' || !regForm) {
+        if (loginForm) loginForm.classList.add("active-form");
+        if (regForm) regForm.classList.remove("active-form");
+        if (loginBtn) loginBtn.classList.add("active");
+        if (regBtn) regBtn.classList.remove("active");
     } else {
-        regForm.classList.add("active-form");
-        loginForm.classList.remove("active-form");
-        regBtn.classList.add("active");
-        loginBtn.classList.remove("active");
+        if (regForm) regForm.classList.add("active-form");
+        if (loginForm) loginForm.classList.remove("active-form");
+        if (regBtn) regBtn.classList.add("active");
+        if (loginBtn) loginBtn.classList.remove("active");
     }
     hideAuthAlert();
 }

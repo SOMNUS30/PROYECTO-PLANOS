@@ -39,23 +39,13 @@
                 <p id="auth-subtitle">Sistema de Edición de PDFs y Auditoría Inmobiliaria</p>
             </div>
 
-            <!-- Tabs Login / Register -->
-            <div class="auth-tabs">
-                <button id="tab-login-btn" class="tab-btn active" onclick="switchAuthTab('login')">
-                    <i data-lucide="log-in"></i> Iniciar Sesión
-                </button>
-                <button id="tab-register-btn" class="tab-btn" onclick="switchAuthTab('register')">
-                    <i data-lucide="user-plus"></i> Registrarse
-                </button>
-            </div>
-
             <!-- Form Iniciar Sesión -->
             <form id="login-form" class="auth-form active-form" onsubmit="handleLogin(event)">
                 <div class="input-group">
                     <label for="login-username">Usuario o Email</label>
                     <div class="input-wrapper">
                         <i data-lucide="user"></i>
-                        <input type="text" id="login-username" placeholder="Ej: admin o carlos@ejemplo.com" required>
+                        <input type="text" id="login-username" placeholder="Usuario o correo electrónico" required>
                     </div>
                 </div>
 
@@ -63,69 +53,12 @@
                     <label for="login-password">Contraseña</label>
                     <div class="input-wrapper">
                         <i data-lucide="lock"></i>
-                        <input type="password" id="login-password" placeholder="••••••••" required>
+                        <input type="password" id="login-password" placeholder="" required>
                     </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-block btn-lg">
                     <i data-lucide="arrow-right"></i> Entrar al Sistema
-                </button>
-
-                <!-- Removido Accesos Directos de Demostración -->
-            </form>
-
-            <!-- Form Registro de Usuario -->
-            <form id="register-form" class="auth-form" onsubmit="handleRegister(event)">
-                <div class="input-group">
-                    <label for="reg-name">Nombre Completo</label>
-                    <div class="input-wrapper">
-                        <i data-lucide="user-check"></i>
-                        <input type="text" id="reg-name" placeholder="Ej: Ana Gómez" required>
-                    </div>
-                </div>
-
-                <div class="input-group">
-                    <label for="reg-username">Nombre de Usuario</label>
-                    <div class="input-wrapper">
-                        <i data-lucide="at-sign"></i>
-                        <input type="text" id="reg-username" placeholder="Ej: anagomez" required>
-                    </div>
-                </div>
-
-                <div class="input-group">
-                    <label for="reg-email">Correo Electrónico</label>
-                    <div class="input-wrapper">
-                        <i data-lucide="mail"></i>
-                        <input type="email" id="reg-email" placeholder="ana@empresa.com" required>
-                    </div>
-                </div>
-
-                <div class="input-group">
-                    <label for="reg-password">Contraseña</label>
-                    <div class="input-wrapper">
-                        <i data-lucide="key"></i>
-                        <input type="password" id="reg-password" placeholder="Mínimo 6 caracteres" minlength="6" required>
-                    </div>
-                </div>
-
-                <div class="input-group">
-                    <label for="reg-invite-code">Código de Invitación (Opcional)</label>
-                    <div class="input-wrapper">
-                        <i data-lucide="ticket"></i>
-                        <input type="text" id="reg-invite-code" placeholder="Ej: INV-9876 (proporcionado por Admin)">
-                    </div>
-                </div>
-
-                <div class="input-group">
-                    <label for="reg-avatar">Foto de Perfil (Opcional)</label>
-                    <div class="input-wrapper">
-                        <i data-lucide="image"></i>
-                        <input type="file" id="reg-avatar" accept="image/*" style="padding: 10px 14px 10px 42px;">
-                    </div>
-                </div>
-
-                <button type="submit" class="btn btn-success btn-block btn-lg">
-                    <i data-lucide="check-circle"></i> Crear Mi Cuenta
                 </button>
             </form>
             
@@ -567,19 +500,19 @@
             <form id="invite-user-form" onsubmit="handleCreateUserAdmin(event)">
                 <div class="input-group">
                     <label>Nombre Completo</label>
-                    <input type="text" id="inv-fullname" placeholder="Ej: Roberto Silva" required>
+                    <input type="text" id="inv-fullname" placeholder="" required>
                 </div>
                 <div class="input-group">
                     <label>Nombre de Usuario</label>
-                    <input type="text" id="inv-username" placeholder="Ej: rsilva" required>
+                    <input type="text" id="inv-username" placeholder="" required>
                 </div>
                 <div class="input-group">
                     <label>Correo Electrónico</label>
-                    <input type="email" id="inv-email" placeholder="rsilva@empresa.com" required>
+                    <input type="email" id="inv-email" placeholder="" required>
                 </div>
                 <div class="input-group">
                     <label>Contraseña Inicial</label>
-                    <input type="text" id="inv-password" value="User123!" required>
+                    <input type="password" id="inv-password" placeholder="Contraseña inicial" required>
                 </div>
                 <div class="input-group">
                     <label>Rol Asignado</label>

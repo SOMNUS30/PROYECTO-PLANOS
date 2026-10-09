@@ -107,12 +107,20 @@ function filterUsersTable(val) {
 }
 
 function toggleUserRole(userId) {
-    const users = JSON.parse(localStorage.getItem("planos_users") || "[]");
+    const users = (typeof getUsersFromStorage === "function") 
+        ? getUsersFromStorage() 
+        : JSON.parse(localStorage.getItem("planos_users") || "[]");
     const u = users.find(user => user.id === userId);
     if (!u) return;
 
     u.role = (u.role === "ADMIN") ? "USER" : "ADMIN";
-    localStorage.setItem("planos_users", JSON.stringify(users));
+    
+    if (typeof saveUsersToStorage === "function") {
+        saveUsersToStorage(users);
+    } else {
+        localStorage.setItem("planos_users", JSON.stringify(users));
+        if (typeof syncUsersToCloud === "function") syncUsersToCloud(users);
+    }
 
     addAuditLog("USER_ROLE_CHANGE", `Rol actualizado para usuario ${u.username}`, `Nuevo rol asignado: ${u.role}`);
     showToast(`Rol de ${u.name} cambiado a ${u.role}`, "info");
@@ -120,12 +128,20 @@ function toggleUserRole(userId) {
 }
 
 function toggleUserStatus(userId) {
-    const users = JSON.parse(localStorage.getItem("planos_users") || "[]");
+    const users = (typeof getUsersFromStorage === "function") 
+        ? getUsersFromStorage() 
+        : JSON.parse(localStorage.getItem("planos_users") || "[]");
     const u = users.find(user => user.id === userId);
     if (!u) return;
 
     u.status = (u.status === "ACTIVE") ? "SUSPENDED" : "ACTIVE";
-    localStorage.setItem("planos_users", JSON.stringify(users));
+    
+    if (typeof saveUsersToStorage === "function") {
+        saveUsersToStorage(users);
+    } else {
+        localStorage.setItem("planos_users", JSON.stringify(users));
+        if (typeof syncUsersToCloud === "function") syncUsersToCloud(users);
+    }
 
     addAuditLog("USER_STATUS_CHANGE", `Estado de usuario modificado: ${u.username}`, `Estado cambiado a: ${u.status}`);
     showToast(`Usuario ${u.name} ${u.status === 'ACTIVE' ? 'activado' : 'suspendido'}`, "info");
@@ -135,11 +151,19 @@ function toggleUserStatus(userId) {
 function deleteUser(userId) {
     if (!confirm("¿Estás seguro de que deseas eliminar este usuario del sistema?")) return;
 
-    let users = JSON.parse(localStorage.getItem("planos_users") || "[]");
+    let users = (typeof getUsersFromStorage === "function") 
+        ? getUsersFromStorage() 
+        : JSON.parse(localStorage.getItem("planos_users") || "[]");
+        
     const deletedUser = users.find(u => u.id === userId);
     users = users.filter(u => u.id !== userId);
 
-    localStorage.setItem("planos_users", JSON.stringify(users));
+    if (typeof saveUsersToStorage === "function") {
+        saveUsersToStorage(users);
+    } else {
+        localStorage.setItem("planos_users", JSON.stringify(users));
+        if (typeof syncUsersToCloud === "function") syncUsersToCloud(users);
+    }
 
     if (deletedUser) {
         addAuditLog("USER_DELETE", `Usuario eliminado: ${deletedUser.username}`, `El usuario ${deletedUser.name} fue removido del sistema`);
@@ -150,6 +174,18 @@ function deleteUser(userId) {
 }
 
 function openInviteUserModal() {
+    const nameEl = document.getElementById("inv-fullname");
+    const usernameEl = document.getElementById("inv-username");
+    const emailEl = document.getElementById("inv-email");
+    const passwordEl = document.getElementById("inv-password");
+    const avatarInput = document.getElementById("inv-avatar");
+
+    if (nameEl) nameEl.value = "";
+    if (usernameEl) usernameEl.value = "";
+    if (emailEl) emailEl.value = "";
+    if (passwordEl) passwordEl.value = "";
+    if (avatarInput) avatarInput.value = "";
+
     document.getElementById("invite-user-modal").classList.remove("hidden");
 }
 
