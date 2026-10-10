@@ -168,6 +168,10 @@ function deleteUser(userId) {
         if (typeof syncUsersToCloud === "function") syncUsersToCloud(users);
     }
 
+    if (typeof deleteUserFromCloud === "function") {
+        deleteUserFromCloud(userId);
+    }
+
     if (deletedUser) {
         addAuditLog("USER_DELETE", `Usuario eliminado: ${deletedUser.username}`, `El usuario ${deletedUser.name} fue removido del sistema`);
     }

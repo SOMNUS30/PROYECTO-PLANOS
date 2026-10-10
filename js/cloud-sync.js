@@ -81,25 +81,41 @@ async function fetchPdfBinaryFromCloud(docId) {
 }
 window.fetchPdfBinaryFromCloud = fetchPdfBinaryFromCloud;
 
-// 3. Delete Raw PDF Binary from Supabase Storage
+// 3. Delete Raw PDF Binary from Supabase Storage & Database
 async function deletePdfBinaryFromCloud(docId) {
     if (!window.supabaseClient) return;
     try {
         const filePath = `${docId}.pdf`;
-        const { error } = await window.supabaseClient.storage
+        await window.supabaseClient.storage
             .from("planos")
             .remove([filePath]);
 
-        if (error) {
-            console.warn("Error eliminando PDF en Supabase Storage:", error.message || error);
-        } else {
-            console.log("PDF eliminado de Supabase Storage:", docId);
-        }
+        await window.supabaseClient
+            .from("documents")
+            .delete()
+            .eq("id", String(docId));
+
+        console.log("PDF y documento eliminados de Supabase:", docId);
     } catch (err) {
         console.warn("Error en deletePdfBinaryFromCloud:", err);
     }
 }
 window.deletePdfBinaryFromCloud = deletePdfBinaryFromCloud;
+
+// Delete User Profile from Supabase
+async function deleteUserFromCloud(userId) {
+    if (!window.supabaseClient) return;
+    try {
+        await window.supabaseClient
+            .from("profiles")
+            .delete()
+            .eq("id", String(userId));
+        console.log("Usuario eliminado de Supabase profiles:", userId);
+    } catch (err) {
+        console.warn("Error en deleteUserFromCloud:", err);
+    }
+}
+window.deleteUserFromCloud = deleteUserFromCloud;
 
 // 4. Sync Users Array to Supabase Database (profiles table)
 async function syncUsersToCloud(users) {
