@@ -141,7 +141,49 @@ async function fetchCloudData() {
         if (docsRes && docsRes.ok) {
             const cloudDocs = await docsRes.json();
             if (Array.isArray(cloudDocs)) {
-                localStorage.setItem("planos_documents", JSON.stringify(cloudDocs));
+                const localDocs = JSON.parse(localStorage.getItem("planos_documents") || "[]");
+                const deletedIds = JSON.parse(localStorage.getItem("planos_deleted_docs") || "[]");
+
+                const docMap = new Map();
+
+                // 1. Keep local documents that were not explicitly deleted by admin
+                localDocs.forEach(d => {
+                    if (d && d.id && !deletedIds.includes(d.id)) {
+                        docMap.set(d.id, d);
+                    }
+                });
+
+                // 2. Merge cloud documents
+                cloudDocs.forEach(cDoc => {
+                    if (!cDoc || !cDoc.id || deletedIds.includes(cDoc.id)) return;
+                    if (!docMap.has(cDoc.id)) {
+                        docMap.set(cDoc.id, cDoc);
+                    } else {
+                        const localDoc = docMap.get(cDoc.id);
+                        const localTime = new Date(localDoc.lastEditedAt || localDoc.uploadedAt || 0).getTime();
+                        const cloudTime = new Date(cDoc.lastEditedAt || cDoc.uploadedAt || 0).getTime();
+                        
+                        const mergedAnnotations = (cDoc.annotations && cDoc.annotations.length >= (localDoc.annotations?.length || 0))
+                            ? cDoc.annotations
+                            : (localDoc.annotations || []);
+
+                        docMap.set(cDoc.id, {
+                            ...localDoc,
+                            ...cDoc,
+                            annotations: mergedAnnotations,
+                            lastEditedAt: cloudTime > localTime ? cDoc.lastEditedAt : localDoc.lastEditedAt,
+                            editsCount: Math.max(localDoc.editsCount || 0, cDoc.editsCount || 0)
+                        });
+                    }
+                });
+
+                const mergedDocs = Array.from(docMap.values());
+                localStorage.setItem("planos_documents", JSON.stringify(mergedDocs));
+
+                // If local had uploaded docs that cloud server didn't have yet, push them to cloud
+                if (mergedDocs.length > cloudDocs.length) {
+                    syncDocumentsToCloud(mergedDocs);
+                }
             }
         }
 

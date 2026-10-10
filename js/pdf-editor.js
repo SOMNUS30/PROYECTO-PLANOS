@@ -447,11 +447,6 @@ function renderOverlayAnnotations() {
             case "rect":
                 overlayCtx.fillRect(x, y, w, h);
                 overlayCtx.strokeRect(x, y, w, h);
-                if (ann.label) {
-                    overlayCtx.fillStyle = ann.color;
-                    overlayCtx.font = `bold ${Math.round(16 * zoomScale)}px Outfit, sans-serif`;
-                    overlayCtx.fillText(ann.label, x + 5 * zoomScale, y - 8 * zoomScale);
-                }
                 break;
 
             case "circle":
@@ -459,12 +454,6 @@ function renderOverlayAnnotations() {
                 overlayCtx.arc(x, y, r, 0, 2 * Math.PI);
                 overlayCtx.fill();
                 overlayCtx.stroke();
-                if (ann.label) {
-                    overlayCtx.fillStyle = ann.color;
-                    overlayCtx.font = `bold ${Math.round(14 * zoomScale)}px Outfit, sans-serif`;
-                    const tw = overlayCtx.measureText(ann.label).width;
-                    overlayCtx.fillText(ann.label, x - tw / 2, y - r - 6 * zoomScale);
-                }
                 break;
 
             case "line":
@@ -482,14 +471,6 @@ function renderOverlayAnnotations() {
                 overlayCtx.lineTo(ann.endX * zoomScale - headLen * Math.cos(angle - Math.PI / 6), ann.endY * zoomScale - headLen * Math.sin(angle - Math.PI / 6));
                 overlayCtx.lineTo(ann.endX * zoomScale - headLen * Math.cos(angle + Math.PI / 6), ann.endY * zoomScale - headLen * Math.sin(angle + Math.PI / 6));
                 overlayCtx.fill();
-
-                if (ann.label) {
-                    overlayCtx.fillStyle = ann.color;
-                    overlayCtx.font = `bold ${Math.round(14 * zoomScale)}px Outfit, sans-serif`;
-                    const midX = (x + ann.endX * zoomScale) / 2;
-                    const midY = (y + ann.endY * zoomScale) / 2;
-                    overlayCtx.fillText(ann.label, midX, midY - 8 * zoomScale);
-                }
                 break;
 
             case "draw":
