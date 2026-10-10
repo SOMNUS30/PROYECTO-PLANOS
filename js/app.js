@@ -242,6 +242,12 @@ function filterDocs(filterType) {
 }
 
 function deleteDocument(docId) {
+    const user = getCurrentUser();
+    if (!user || user.role !== "ADMIN") {
+        showToast("Solo el administrador puede borrar los archivos", "error");
+        return;
+    }
+
     if (!confirm("¿Deseas eliminar este plano? Esta acción no se puede deshacer.")) return;
 
     let docs = JSON.parse(localStorage.getItem("planos_documents") || "[]");

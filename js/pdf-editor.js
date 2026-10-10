@@ -459,6 +459,12 @@ function renderOverlayAnnotations() {
                 overlayCtx.arc(x, y, r, 0, 2 * Math.PI);
                 overlayCtx.fill();
                 overlayCtx.stroke();
+                if (ann.label) {
+                    overlayCtx.fillStyle = ann.color;
+                    overlayCtx.font = `bold ${Math.round(14 * zoomScale)}px Outfit, sans-serif`;
+                    const tw = overlayCtx.measureText(ann.label).width;
+                    overlayCtx.fillText(ann.label, x - tw / 2, y - r - 6 * zoomScale);
+                }
                 break;
 
             case "line":
@@ -476,6 +482,14 @@ function renderOverlayAnnotations() {
                 overlayCtx.lineTo(ann.endX * zoomScale - headLen * Math.cos(angle - Math.PI / 6), ann.endY * zoomScale - headLen * Math.sin(angle - Math.PI / 6));
                 overlayCtx.lineTo(ann.endX * zoomScale - headLen * Math.cos(angle + Math.PI / 6), ann.endY * zoomScale - headLen * Math.sin(angle + Math.PI / 6));
                 overlayCtx.fill();
+
+                if (ann.label) {
+                    overlayCtx.fillStyle = ann.color;
+                    overlayCtx.font = `bold ${Math.round(14 * zoomScale)}px Outfit, sans-serif`;
+                    const midX = (x + ann.endX * zoomScale) / 2;
+                    const midY = (y + ann.endY * zoomScale) / 2;
+                    overlayCtx.fillText(ann.label, midX, midY - 8 * zoomScale);
+                }
                 break;
 
             case "draw":
@@ -804,7 +818,10 @@ function deleteSelectedAnnotation() {
 
 function updateAnnotationsListUI() {
     const listContainer = document.getElementById("annotations-list");
-    document.getElementById("annotation-count-tag").textContent = `${annotations.length} elementos`;
+    const countTag = document.getElementById("annotation-count-tag");
+    if (countTag) countTag.textContent = `${annotations.length} elementos`;
+
+    if (!listContainer) return;
 
     if (annotations.length === 0) {
         listContainer.innerHTML = '<p class="empty-list-text">No hay elementos agregados aún. Usa la barra superior para insertar rectángulos, círculos, flechas o texto.</p>';
@@ -816,27 +833,56 @@ function updateAnnotationsListUI() {
         const item = document.createElement("div");
         item.className = `annotation-item ${ann.id === selectedAnnotationId ? 'selected' : ''}`;
         
-        let typeLabel = "Forma";
+        let defaultTypeLabel = "Forma";
         let iconName = "square";
-        if (ann.type === "rect") { typeLabel = `Rectángulo #${idx + 1}`; iconName = "square"; }
-        if (ann.type === "circle") { typeLabel = `Círculo #${idx + 1}`; iconName = "circle"; }
-        if (ann.type === "line") { typeLabel = `Flecha / Línea #${idx + 1}`; iconName = "move-up-right"; }
-        if (ann.type === "text") { typeLabel = `Nota: "${ann.text.substring(0, 10)}..."`; iconName = "type"; }
-        if (ann.type === "stamp") { typeLabel = `Sello: ${ann.text}`; iconName = "stamp"; }
+        if (ann.type === "rect") { defaultTypeLabel = `Rectángulo #${idx + 1}`; iconName = "square"; }
+        if (ann.type === "circle") { defaultTypeLabel = `Círculo #${idx + 1}`; iconName = "circle"; }
+        if (ann.type === "line") { defaultTypeLabel = `Flecha / Línea #${idx + 1}`; iconName = "move-up-right"; }
+        if (ann.type === "text") { defaultTypeLabel = `Nota: "${ann.text.substring(0, 12)}..."`; iconName = "type"; }
+        if (ann.type === "stamp") { defaultTypeLabel = `Sello: ${ann.text}`; iconName = "stamp"; }
+
+        const displayLabel = ann.label || defaultTypeLabel;
 
         item.innerHTML = `
-            <span><i data-lucide="${iconName}" style="color:${ann.color}; width:16px;"></i> ${typeLabel}</span>
-            <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); deleteAnnotationById('${ann.id}')">&times;</button>
+            <div style="display:flex; align-items:center; gap:8px; flex:1; cursor:pointer; overflow:hidden;" onclick="selectAnnotationById('${ann.id}')">
+                <i data-lucide="${iconName}" style="color:${ann.color}; width:16px; flex-shrink:0;"></i> 
+                <span style="font-weight:500; font-size:0.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${displayLabel}">${displayLabel}</span>
+            </div>
+            <div style="display:flex; gap:4px; align-items:center;">
+                <button class="btn btn-icon btn-sm btn-secondary" title="Renombrar (Manzana / Lote)" onclick="event.stopPropagation(); editAnnotationLabel('${ann.id}')">
+                    <i data-lucide="pencil" style="width:13px; height:13px;"></i>
+                </button>
+                <button class="btn btn-icon btn-sm btn-outline-danger" title="Eliminar elemento" onclick="event.stopPropagation(); deleteAnnotationById('${ann.id}')">&times;</button>
+            </div>
         `;
-        item.onclick = () => {
-            selectedAnnotationId = ann.id;
-            renderOverlayAnnotations();
-            updateAnnotationsListUI();
-        };
         listContainer.appendChild(item);
     });
 
     if (window.lucide) lucide.createIcons();
+}
+
+function selectAnnotationById(id) {
+    selectedAnnotationId = id;
+    renderOverlayAnnotations();
+    updateAnnotationsListUI();
+}
+
+function editAnnotationLabel(id) {
+    const ann = annotations.find(a => a.id === id);
+    if (!ann) return;
+
+    const currentLabel = ann.label || "";
+    const newLabel = prompt("Ingresa el identificador para esta forma (Ej: Manzana A - Lote 15):", currentLabel || "Manzana A - Lote 15");
+
+    if (newLabel !== null) {
+        saveStateForUndo();
+        ann.label = newLabel.trim();
+        renderOverlayAnnotations();
+        updateAnnotationsListUI();
+        if (ann.label) {
+            showToast(`Identificación guardada: "${ann.label}"`, "success");
+        }
+    }
 }
 
 function deleteAnnotationById(id) {
