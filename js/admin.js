@@ -84,6 +84,9 @@ function renderUsersTable(filterText = "") {
             <td style="font-weight:600; text-align:center;">${user.editsCount || 0}</td>
             <td>
                 <div style="display:flex; gap:6px;">
+                    <button class="btn btn-icon btn-sm btn-secondary" title="Editar Datos de Usuario" onclick="openEditUserModal('${user.id}')">
+                        <i data-lucide="edit-3"></i>
+                    </button>
                     <button class="btn btn-icon btn-sm btn-secondary" title="Cambiar Rol (Admin/Usuario)" onclick="toggleUserRole('${user.id}')" ${isCurrentAdmin ? 'disabled' : ''}>
                         <i data-lucide="shield"></i>
                     </button>
@@ -260,6 +263,102 @@ async function handleCreateUserAdmin(event) {
     closeInviteUserModal();
     showToast(`Usuario ${name} registrado e invitado con éxito!`, "success");
     renderAdminDashboard();
+}
+
+function openEditUserModal(userId) {
+    const users = (typeof getUsersFromStorage === "function") 
+        ? getUsersFromStorage() 
+        : JSON.parse(localStorage.getItem("planos_users") || "[]");
+    const u = users.find(user => user.id === userId);
+    if (!u) return;
+
+    document.getElementById("edit-user-id").value = u.id;
+    document.getElementById("edit-fullname").value = u.name || "";
+    document.getElementById("edit-username").value = u.username || "";
+    document.getElementById("edit-email").value = u.email || "";
+    document.getElementById("edit-password").value = "";
+    document.getElementById("edit-role").value = u.role || "USER";
+    document.getElementById("edit-status").value = u.status || "ACTIVE";
+
+    document.getElementById("edit-user-modal").classList.remove("hidden");
+    if (window.lucide) lucide.createIcons();
+}
+
+function closeEditUserModal() {
+    document.getElementById("edit-user-modal").classList.add("hidden");
+}
+
+async function handleSaveUserEditAdmin(event) {
+    event.preventDefault();
+
+    const userId = document.getElementById("edit-user-id").value;
+    const name = document.getElementById("edit-fullname").value.trim();
+    const username = document.getElementById("edit-username").value.trim().toLowerCase();
+    const email = document.getElementById("edit-email").value.trim().toLowerCase();
+    const password = document.getElementById("edit-password").value;
+    const role = document.getElementById("edit-role").value;
+    const status = document.getElementById("edit-status").value;
+
+    let users = (typeof getUsersFromStorage === "function") 
+        ? getUsersFromStorage() 
+        : JSON.parse(localStorage.getItem("planos_users") || "[]");
+
+    const uIndex = users.findIndex(user => user.id === userId);
+    if (uIndex === -1) {
+        showToast("Usuario no encontrado.", "error");
+        return;
+    }
+
+    // Check collision with another user's username or email
+    const existsCollision = users.some(u => u.id !== userId && (u.username.toLowerCase() === username || u.email.toLowerCase() === email));
+    if (existsCollision) {
+        showToast("El nombre de usuario o correo electrónico ya está en uso por otro usuario.", "error");
+        return;
+    }
+
+    users[uIndex].name = name;
+    users[uIndex].username = username;
+    users[uIndex].email = email;
+    users[uIndex].role = role;
+    users[uIndex].status = status;
+    if (password && password.trim() !== "") {
+        users[uIndex].passwordHash = password;
+    }
+
+    if (typeof saveUsersToStorage === "function") {
+        saveUsersToStorage(users);
+    } else {
+        localStorage.setItem("planos_users", JSON.stringify(users));
+        if (typeof syncUsersToCloud === "function") syncUsersToCloud(users);
+    }
+
+    // Update active session if editing current user
+    const curr = getCurrentUser();
+    if (curr && curr.id === userId) {
+        currentUser = users[uIndex];
+        if (typeof sessionStorage !== "undefined") {
+            sessionStorage.setItem("planos_active_session", JSON.stringify(currentUser));
+        }
+        if (typeof updateUserUI === "function") updateUserUI();
+    }
+
+    addAuditLog("USER_EDIT", `Datos de usuario modificados por administrador`, `Usuario: ${username} (${name}) - Rol: ${role}`);
+
+    closeEditUserModal();
+    showToast(`Datos de ${name} actualizados con éxito!`, "success");
+    renderAdminDashboard();
+}
+
+function clearAuditLogs() {
+    if (!confirm("¿Estás seguro de que deseas eliminar todo el historial de auditoría? Esta acción no se puede deshacer.")) return;
+
+    localStorage.setItem("planos_audit_logs", "[]");
+    if (typeof syncAuditLogsToCloud === "function") {
+        syncAuditLogsToCloud([]);
+    }
+
+    showToast("Historial de auditoría eliminado correctamente.", "info");
+    renderAuditLogs();
 }
 
 // AUDIT LOGS TIMELINE RENDERER

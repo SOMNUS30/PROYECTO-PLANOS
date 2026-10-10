@@ -455,7 +455,10 @@
                             <h2>Historial de Auditoría & Actividad</h2>
                             <p>Registro cronológico detallado de inicios de sesión, modificaciones en PDFs, invitaciones y cambios de rol.</p>
                         </div>
-                        <div class="header-actions">
+                        <div class="header-actions" style="display: flex; gap: 8px;">
+                            <button class="btn btn-outline-danger" onclick="clearAuditLogs()">
+                                <i data-lucide="trash-2"></i> Eliminar Historial
+                            </button>
                             <button class="btn btn-secondary" onclick="exportAuditLogsCSV()">
                                 <i data-lucide="download"></i> Exportar Registro (CSV)
                             </button>
@@ -528,6 +531,53 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeInviteUserModal()">Cancelar</button>
                     <button type="submit" class="btn btn-primary"><i data-lucide="check"></i> Crear Usuario</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: EDIT USER -->
+    <div id="edit-user-modal" class="modal-backdrop hidden">
+        <div class="modal-card glass-panel">
+            <div class="modal-header">
+                <h3><i data-lucide="edit-3"></i> Editar Datos de Usuario</h3>
+                <button class="btn-close" onclick="closeEditUserModal()">&times;</button>
+            </div>
+            <form id="edit-user-form" onsubmit="handleSaveUserEditAdmin(event)">
+                <input type="hidden" id="edit-user-id">
+                <div class="input-group">
+                    <label>Nombre Completo</label>
+                    <input type="text" id="edit-fullname" required>
+                </div>
+                <div class="input-group">
+                    <label>Nombre de Usuario</label>
+                    <input type="text" id="edit-username" required>
+                </div>
+                <div class="input-group">
+                    <label>Correo Electrónico</label>
+                    <input type="email" id="edit-email" required>
+                </div>
+                <div class="input-group">
+                    <label>Nueva Contraseña (Opcional)</label>
+                    <input type="password" id="edit-password" placeholder="Dejar en blanco para conservar contraseña actual">
+                </div>
+                <div class="input-group">
+                    <label>Rol Asignado</label>
+                    <select id="edit-role">
+                        <option value="USER">Usuario Estándar (Ver y Editar)</option>
+                        <option value="ADMIN">Administrador (Control Total)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Estado del Acceso</label>
+                    <select id="edit-status">
+                        <option value="ACTIVE">Activo</option>
+                        <option value="SUSPENDED">Suspendido</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditUserModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i data-lucide="check-circle"></i> Guardar Cambios</button>
                 </div>
             </form>
         </div>
