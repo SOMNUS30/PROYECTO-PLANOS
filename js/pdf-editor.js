@@ -120,6 +120,31 @@ let annotations = []; // Array of annotation objects for active document
 let selectedAnnotationId = null;
 let undoStack = [];
 
+let hasUnsavedChanges = false;
+window.hasUnsavedChanges = false;
+
+function setHasUnsavedChanges(val) {
+    hasUnsavedChanges = val;
+    window.hasUnsavedChanges = val;
+}
+window.setHasUnsavedChanges = setHasUnsavedChanges;
+
+function checkUnsavedChangesConfirmation() {
+    if (window.hasUnsavedChanges) {
+        return confirm("⚠️ Tienes cambios sin guardar en el plano actual.\n\n¿Estás seguro de que deseas salir sin guardar? Los cambios no guardados se perderán.");
+    }
+    return true;
+}
+window.checkUnsavedChangesConfirmation = checkUnsavedChangesConfirmation;
+
+window.addEventListener("beforeunload", (e) => {
+    if (window.hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = "⚠️ Tienes cambios sin guardar en el plano actual. ¿Seguro que deseas salir?";
+        return e.returnValue;
+    }
+});
+
 // Canvas references
 let pdfCanvas = null;
 let pdfCtx = null;
@@ -224,6 +249,10 @@ function updateCursorStyle() {
 }
 
 async function loadDocumentInEditor(docId) {
+    if (activeDocument && activeDocument.id !== docId && window.hasUnsavedChanges) {
+        if (!checkUnsavedChangesConfirmation()) return;
+    }
+
     const docs = JSON.parse(localStorage.getItem("planos_documents") || "[]");
     activeDocument = docs.find(d => d.id === docId);
 
@@ -237,6 +266,7 @@ async function loadDocumentInEditor(docId) {
     
     annotations = activeDocument.annotations || [];
     undoStack = [];
+    setHasUnsavedChanges(false);
     currentPageNum = 1;
     zoomScale = 1.0;
     activePdfArrayBuffer = null;
@@ -773,6 +803,7 @@ function updateSelectedToolStyle() {
 function saveStateForUndo() {
     undoStack.push(JSON.stringify(annotations));
     if (undoStack.length > 20) undoStack.shift();
+    setHasUnsavedChanges(true);
 }
 
 function undoAnnotation() {
@@ -915,6 +946,7 @@ function saveCurrentEdits() {
 
         showToast("¡Edición guardada y registrada en el historial!", "success");
         document.getElementById("editor-doc-badge").textContent = `Versión ${activeDocument.editsCount}`;
+        setHasUnsavedChanges(false);
 
         if (window.renderDocumentsLibrary) window.renderDocumentsLibrary();
         if (window.renderAdminDashboard) window.renderAdminDashboard();

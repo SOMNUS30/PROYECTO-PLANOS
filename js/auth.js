@@ -283,6 +283,10 @@ function fillDemoCredentials(username, password) {
 }
 
 function handleLogout() {
+    if (typeof window.checkUnsavedChangesConfirmation === "function" && !window.checkUnsavedChangesConfirmation()) {
+        return;
+    }
+
     if (currentUser) {
         addAuditLog("LOGOUT", "Cierre de sesión de usuario", `Usuario ${currentUser.username} cerró sesión`);
     }

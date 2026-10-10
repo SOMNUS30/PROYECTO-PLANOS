@@ -55,6 +55,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // View Navigation Router
 function navigateTo(viewId) {
+    // Confirm navigation if leaving editor with unsaved changes
+    const currentActiveView = document.querySelector(".app-view.active-view");
+    if (currentActiveView && currentActiveView.id === "view-editor" && viewId !== "editor") {
+        if (typeof window.checkUnsavedChangesConfirmation === "function" && !window.checkUnsavedChangesConfirmation()) {
+            return;
+        }
+    }
+
     // Check permission for admin views
     const user = getCurrentUser();
     if ((viewId === 'admin-users' || viewId === 'admin-audit') && user?.role !== 'ADMIN') {
