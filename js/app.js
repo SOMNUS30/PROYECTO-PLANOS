@@ -250,12 +250,6 @@ function deleteDocument(docId) {
 
     if (!confirm("¿Deseas eliminar este plano? Esta acción no se puede deshacer.")) return;
 
-    let deletedIds = JSON.parse(localStorage.getItem("planos_deleted_docs") || "[]");
-    if (!deletedIds.includes(docId)) {
-        deletedIds.push(docId);
-        localStorage.setItem("planos_deleted_docs", JSON.stringify(deletedIds));
-    }
-
     let docs = JSON.parse(localStorage.getItem("planos_documents") || "[]");
     const docToDelete = docs.find(d => d.id === docId);
     docs = docs.filter(d => d.id !== docId);
