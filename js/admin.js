@@ -151,7 +151,7 @@ function toggleUserStatus(userId) {
     renderAdminDashboard();
 }
 
-function deleteUser(userId) {
+async function deleteUser(userId) {
     if (!confirm("¿Estás seguro de que deseas eliminar este usuario del sistema?")) return;
 
     let users = (typeof getUsersFromStorage === "function") 
@@ -161,15 +161,13 @@ function deleteUser(userId) {
     const deletedUser = users.find(u => u.id === userId);
     users = users.filter(u => u.id !== userId);
 
-    if (typeof saveUsersToStorage === "function") {
-        saveUsersToStorage(users);
-    } else {
-        localStorage.setItem("planos_users", JSON.stringify(users));
-        if (typeof syncUsersToCloud === "function") syncUsersToCloud(users);
-    }
+    // Save locally immediately so UI updates instantly
+    localStorage.setItem("planos_users", JSON.stringify(users));
+    renderAdminDashboard();
 
+    // Delete permanently from Supabase Cloud (profiles table)
     if (typeof deleteUserFromCloud === "function") {
-        deleteUserFromCloud(userId);
+        try { await deleteUserFromCloud(userId); } catch(e) {}
     }
 
     if (deletedUser) {
@@ -177,7 +175,6 @@ function deleteUser(userId) {
     }
 
     showToast("Usuario eliminado correctamente.", "success");
-    renderAdminDashboard();
 }
 
 function openInviteUserModal() {

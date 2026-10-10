@@ -249,7 +249,7 @@ function filterDocs(filterType) {
     renderDocumentsLibrary();
 }
 
-function deleteDocument(docId) {
+async function deleteDocument(docId) {
     const user = getCurrentUser();
     if (!user || user.role !== "ADMIN") {
         showToast("Solo el administrador puede borrar los archivos", "error");
@@ -262,13 +262,18 @@ function deleteDocument(docId) {
     const docToDelete = docs.find(d => d.id === docId);
     docs = docs.filter(d => d.id !== docId);
 
-    saveDocumentsToStorage(docs);
+    // Save locally immediately so UI updates instantly
+    localStorage.setItem("planos_documents", JSON.stringify(docs));
+    renderDocumentsLibrary();
 
+    // Delete binary from local IndexedDB
     if (window.deletePdfBinary) {
-        deletePdfBinary(docId);
+        try { await window.deletePdfBinary(docId); } catch(e) {}
     }
+
+    // Delete permanently from Supabase Cloud (Storage bucket + documents table)
     if (typeof deletePdfBinaryFromCloud === "function") {
-        deletePdfBinaryFromCloud(docId);
+        try { await deletePdfBinaryFromCloud(docId); } catch(e) {}
     }
 
     if (docToDelete) {
@@ -276,7 +281,6 @@ function deleteDocument(docId) {
     }
 
     showToast("Documento eliminado correctamente.", "info");
-    renderDocumentsLibrary();
 }
 
 // DRAG & DROP PDF UPLOAD HANDLER

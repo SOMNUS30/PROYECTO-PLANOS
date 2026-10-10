@@ -228,71 +228,54 @@ async function fetchCloudData() {
 
         // 1. Process Users / Profiles
         if (usersRes && !usersRes.error && Array.isArray(usersRes.data)) {
-            if (usersRes.data.length === 0 && typeof INITIAL_USERS !== "undefined") {
-                // Auto-seed initial users if table is empty
-                console.log("Sembrando usuarios iniciales en Supabase...");
-                await syncUsersToCloud(INITIAL_USERS);
-            } else if (usersRes.data.length > 0) {
-                const mappedUsers = usersRes.data.map(u => ({
-                    id: u.id,
-                    username: u.username,
-                    name: u.name,
-                    email: u.email,
-                    passwordHash: u.password,
-                    role: u.role,
-                    status: u.status,
-                    avatarUrl: u.avatar_url,
-                    createdAt: u.created_at,
-                    lastLogin: u.last_login,
-                    editsCount: u.edits_count || 0
-                }));
-                localStorage.setItem("planos_users", JSON.stringify(mappedUsers));
-            }
+            const mappedUsers = usersRes.data.map(u => ({
+                id: u.id,
+                username: u.username,
+                name: u.name,
+                email: u.email,
+                passwordHash: u.password,
+                role: u.role,
+                status: u.status,
+                avatarUrl: u.avatar_url,
+                createdAt: u.created_at,
+                lastLogin: u.last_login,
+                editsCount: u.edits_count || 0
+            }));
+            localStorage.setItem("planos_users", JSON.stringify(mappedUsers));
         }
 
         // 2. Process Documents
         if (docsRes && !docsRes.error && Array.isArray(docsRes.data)) {
-            if (docsRes.data.length === 0 && typeof INITIAL_DOCUMENTS !== "undefined") {
-                // Auto-seed initial sample blueprints if table is empty
-                console.log("Sembrando planos iniciales en Supabase...");
-                await syncDocumentsToCloud(INITIAL_DOCUMENTS);
-            } else if (docsRes.data.length > 0) {
-                const mappedDocs = docsRes.data.map(d => ({
-                    id: d.id,
-                    name: d.name,
-                    fileSize: d.file_size || "1.5 MB",
-                    sampleType: d.sample_type || "blueprint-arch",
-                    pdfUrl: d.pdf_url || "",
-                    thumbnailUrl: d.thumbnail_url || null,
-                    annotations: Array.isArray(d.annotations) ? d.annotations : [],
-                    uploadedBy: d.uploaded_by || "anónimo",
-                    uploadedByName: d.uploaded_by_name || "Usuario",
-                    uploadedAt: d.uploaded_at,
-                    lastEditedAt: d.last_edited_at,
-                    editsCount: d.edits_count || 0,
-                    hasBinary: true
-                }));
-                localStorage.setItem("planos_documents", JSON.stringify(mappedDocs));
-            }
+            const mappedDocs = docsRes.data.map(d => ({
+                id: d.id,
+                name: d.name,
+                fileSize: d.file_size || "1.5 MB",
+                sampleType: d.sample_type || "blueprint-arch",
+                pdfUrl: d.pdf_url || "",
+                thumbnailUrl: d.thumbnail_url || null,
+                annotations: Array.isArray(d.annotations) ? d.annotations : [],
+                uploadedBy: d.uploaded_by || "anónimo",
+                uploadedByName: d.uploaded_by_name || "Usuario",
+                uploadedAt: d.uploaded_at,
+                lastEditedAt: d.last_edited_at,
+                editsCount: d.edits_count || 0,
+                hasBinary: true
+            }));
+            localStorage.setItem("planos_documents", JSON.stringify(mappedDocs));
         }
 
         // 3. Process Audit Logs
         if (logsRes && !logsRes.error && Array.isArray(logsRes.data)) {
-            if (logsRes.data.length === 0 && typeof INITIAL_AUDIT_LOGS !== "undefined") {
-                console.log("Sembrando logs iniciales en Supabase...");
-                await syncAuditLogsToCloud(INITIAL_AUDIT_LOGS);
-            } else if (logsRes.data.length > 0) {
-                const mappedLogs = logsRes.data.map(l => ({
-                    id: l.id,
-                    timestamp: l.timestamp,
-                    username: l.username,
-                    userRole: l.user_role,
-                    actionType: l.action_type,
-                    description: l.description,
-                    details: l.details || ""
-                }));
-                localStorage.setItem("planos_audit_logs", JSON.stringify(mappedLogs));
-            }
+            const mappedLogs = logsRes.data.map(l => ({
+                id: l.id,
+                timestamp: l.timestamp,
+                username: l.username,
+                userRole: l.user_role,
+                actionType: l.action_type,
+                description: l.description,
+                details: l.details || ""
+            }));
+            localStorage.setItem("planos_audit_logs", JSON.stringify(mappedLogs));
         }
 
         // Refresh UI components
