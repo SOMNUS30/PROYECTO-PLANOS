@@ -250,11 +250,13 @@ async function loadDocumentInEditor(docId) {
         binaryBuffer = await fetchPdfBinaryFromCloud(activeDocument.id);
     }
 
-    if (binaryBuffer) {
+    if (binaryBuffer && binaryBuffer.byteLength > 0) {
+        showToast("Plano PDF cargado con éxito desde la nube.", "success");
         loadPdfFromArrayBuffer(binaryBuffer);
     } else if (activeDocument.pdfDataUrl) {
         loadPdfFromDataUrl(activeDocument.pdfDataUrl);
     } else {
+        showToast("No se encontró el archivo binario del plano anterior. Mostrando vista interactiva.", "warning");
         renderBlueprintBackground(activeDocument.sampleType || "blueprint-arch");
     }
 

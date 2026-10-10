@@ -97,15 +97,23 @@ function hideAuthAlert() {
     document.getElementById("auth-alert").classList.add("hidden");
 }
 
-function handleLogin(event) {
+async function handleLogin(event) {
     event.preventDefault();
     hideAuthAlert();
 
     const usernameInput = document.getElementById("login-username").value.trim().toLowerCase();
     const passwordInput = document.getElementById("login-password").value;
 
-    const users = getUsersFromStorage();
-    const user = users.find(u => (u.username.toLowerCase() === usernameInput || u.email.toLowerCase() === usernameInput) && u.passwordHash === passwordInput);
+    let users = getUsersFromStorage();
+    let user = users.find(u => (u.username.toLowerCase() === usernameInput || u.email.toLowerCase() === usernameInput) && u.passwordHash === passwordInput);
+
+    // If user not found in local memory, Render server might be waking up from sleep; force sync & re-check!
+    if (!user && typeof fetchCloudData === "function") {
+        showToast("Verificando credenciales con el servidor en la nube...", "info");
+        await fetchCloudData();
+        users = getUsersFromStorage();
+        user = users.find(u => (u.username.toLowerCase() === usernameInput || u.email.toLowerCase() === usernameInput) && u.passwordHash === passwordInput);
+    }
 
     if (!user) {
         showAuthAlert("Usuario o contraseña incorrectos. Por favor intenta nuevamente.");
