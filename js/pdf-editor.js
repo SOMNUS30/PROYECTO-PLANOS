@@ -907,6 +907,13 @@ function handleCanvasMouseUp(e) {
 
     renderOverlayAnnotations();
     updateAnnotationsListUI();
+
+    // Requerimiento 1: Inmediatamente al insertar una forma, abrir formulario de Manzana y Lote
+    if (activeTool === "rect" || activeTool === "circle") {
+        selectedAnnotationId = newId;
+        renderOverlayAnnotations();
+        openRenameShapeModal(newId);
+    }
 }
 
 // Touch Support Handlers
@@ -985,20 +992,153 @@ function deleteSelectedAnnotation() {
     showToast("Elemento eliminado", "info");
 }
 
+// BUSCADOR MZ Y LT & CENTRADO EN CANVAS
+let lastUsedManzana = "";
+let lastUsedLote = "";
+
+function matchesMzLtFilter(ann, mzQuery, ltQuery) {
+    if (!mzQuery && !ltQuery) return true;
+
+    const annMz = (ann.manzana || "").trim().toLowerCase();
+    const annLt = (ann.lote || "").trim().toLowerCase();
+    const label = (ann.label || "").trim().toLowerCase();
+
+    let mzMatch = true;
+    if (mzQuery) {
+        if (annMz) {
+            mzMatch = annMz.includes(mzQuery);
+        } else {
+            mzMatch = label.includes(`mz. ${mzQuery}`) || 
+                      label.includes(`mz ${mzQuery}`) || 
+                      label.includes(`mza ${mzQuery}`) || 
+                      label.includes(`manzana ${mzQuery}`) ||
+                      label.startsWith(mzQuery + " ") ||
+                      label.startsWith(mzQuery + "-") ||
+                      label === mzQuery;
+        }
+        if (!mzMatch && label.includes(mzQuery)) {
+            mzMatch = true;
+        }
+    }
+
+    let ltMatch = true;
+    if (ltQuery) {
+        if (annLt) {
+            ltMatch = annLt.includes(ltQuery);
+        } else {
+            ltMatch = label.includes(`lt. ${ltQuery}`) || 
+                      label.includes(`lt ${ltQuery}`) || 
+                      label.includes(`lote ${ltQuery}`) ||
+                      label.endsWith(" " + ltQuery) ||
+                      label.endsWith("-" + ltQuery) ||
+                      label.includes(" " + ltQuery + " ") ||
+                      label === ltQuery;
+        }
+        if (!ltMatch && label.includes(ltQuery)) {
+            ltMatch = true;
+        }
+    }
+
+    return mzMatch && ltMatch;
+}
+
+function centerViewportOnAnnotation(ann) {
+    if (!ann) return;
+    const viewport = document.getElementById("canvas-viewport");
+    if (!viewport) return;
+
+    let targetX = ann.x;
+    let targetY = ann.y;
+
+    if (ann.type === "rect") {
+        targetX = ann.x + (ann.width || 0) / 2;
+        targetY = ann.y + (ann.height || 0) / 2;
+    } else if (ann.type === "line") {
+        targetX = (ann.x + (ann.endX || ann.x)) / 2;
+        targetY = (ann.y + (ann.endY || ann.y)) / 2;
+    }
+
+    const screenX = targetX * zoomScale;
+    const screenY = targetY * zoomScale;
+
+    viewport.scrollTo({
+        left: screenX - (viewport.clientWidth / 2),
+        top: screenY - (viewport.clientHeight / 2),
+        behavior: "smooth"
+    });
+}
+
+function handleMzLtSearch() {
+    updateAnnotationsListUI();
+    const mzInput = document.getElementById("search-filter-mz");
+    const ltInput = document.getElementById("search-filter-lt");
+    const mz = mzInput ? mzInput.value.trim().toLowerCase() : "";
+    const lt = ltInput ? ltInput.value.trim().toLowerCase() : "";
+
+    if (mz || lt) {
+        const matches = annotations.filter(ann => matchesMzLtFilter(ann, mz, lt));
+        if (matches.length > 0) {
+            selectedAnnotationId = matches[0].id;
+            renderOverlayAnnotations();
+            centerViewportOnAnnotation(matches[0]);
+        }
+    }
+}
+
+function clearMzLtSearch() {
+    const mzInput = document.getElementById("search-filter-mz");
+    const ltInput = document.getElementById("search-filter-lt");
+    if (mzInput) mzInput.value = "";
+    if (ltInput) ltInput.value = "";
+    updateAnnotationsListUI();
+    if (mzInput) mzInput.focus();
+}
+
 function updateAnnotationsListUI() {
     const listContainer = document.getElementById("annotations-list");
     const countTag = document.getElementById("annotation-count-tag");
-    if (countTag) countTag.textContent = `${annotations.length} elementos`;
+    const mzInput = document.getElementById("search-filter-mz");
+    const ltInput = document.getElementById("search-filter-lt");
+    const mzQuery = mzInput ? mzInput.value.trim().toLowerCase() : "";
+    const ltQuery = ltInput ? ltInput.value.trim().toLowerCase() : "";
 
     if (!listContainer) return;
 
     if (annotations.length === 0) {
+        if (countTag) countTag.textContent = "0 elementos";
         listContainer.innerHTML = '<p class="empty-list-text">No hay elementos agregados aún. Usa la barra superior para insertar rectángulos, círculos, flechas o texto.</p>';
         return;
     }
 
+    const filteredAnnotations = annotations.filter(ann => matchesMzLtFilter(ann, mzQuery, ltQuery));
+
+    if (countTag) {
+        if (mzQuery || ltQuery) {
+            countTag.textContent = `${filteredAnnotations.length} de ${annotations.length}`;
+        } else {
+            countTag.textContent = `${annotations.length} elementos`;
+        }
+    }
+
+    if (filteredAnnotations.length === 0) {
+        listContainer.innerHTML = `
+            <div class="empty-list-text" style="padding: 22px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                <i data-lucide="search-x" style="width: 26px; height: 26px; color: var(--text-dim); margin-bottom: 2px;"></i>
+                <span style="line-height: 1.4; font-size: 0.78rem;">No se encontraron formas con:<br>
+                ${mzQuery ? `<b>MZ:</b> "${mzQuery.toUpperCase()}" ` : ''}
+                ${ltQuery ? `<b>LT:</b> "${ltQuery.toUpperCase()}"` : ''}
+                </span>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="clearMzLtSearch()" style="margin-top: 6px; font-size: 0.75rem; padding: 4px 10px;">
+                    <i data-lucide="rotate-ccw" style="width: 12px; height: 12px;"></i> Limpiar filtro
+                </button>
+            </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
     listContainer.innerHTML = "";
-    annotations.forEach((ann, idx) => {
+    filteredAnnotations.forEach((ann, idx) => {
         const item = document.createElement("div");
         item.className = `annotation-item ${ann.id === selectedAnnotationId ? 'selected' : ''}`;
         
@@ -1014,7 +1154,7 @@ function updateAnnotationsListUI() {
         const creator = ann.createdBy || ann.createdByName || (activeDocument && (activeDocument.uploadedByName || activeDocument.uploadedBy)) || "Usuario";
 
         item.innerHTML = `
-            <div style="display:flex; align-items:center; gap:8px; flex:1; cursor:pointer; overflow:hidden;" onclick="selectAnnotationById('${ann.id}')">
+            <div style="display:flex; align-items:center; gap:8px; flex:1; cursor:pointer; overflow:hidden;" onclick="selectAnnotationById('${ann.id}', true)">
                 <i data-lucide="${iconName}" style="color:${ann.color}; width:16px; flex-shrink:0;"></i> 
                 <div style="display:flex; flex-direction:column; overflow:hidden; min-width:0;">
                     <span style="font-weight:600; font-size:0.86rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${displayLabel}">${displayLabel}</span>
@@ -1036,10 +1176,14 @@ function updateAnnotationsListUI() {
     if (window.lucide) lucide.createIcons();
 }
 
-function selectAnnotationById(id) {
+function selectAnnotationById(id, shouldCenter = true) {
     selectedAnnotationId = id;
     renderOverlayAnnotations();
     updateAnnotationsListUI();
+    if (shouldCenter) {
+        const ann = annotations.find(a => a.id === id);
+        if (ann) centerViewportOnAnnotation(ann);
+    }
 }
 
 function openRenameShapeModal(id) {
@@ -1072,16 +1216,30 @@ function openRenameShapeModal(id) {
         }
     }
 
+    // Default to last used manzana if starting a fresh shape
+    if (!manzanaVal && !labelVal && lastUsedManzana) {
+        manzanaVal = lastUsedManzana;
+    }
+
     if (manzanaInput) manzanaInput.value = manzanaVal;
     if (loteInput) loteInput.value = loteVal;
-    if (displayInput) displayInput.value = labelVal || (manzanaVal && loteVal ? `${manzanaVal} ${loteVal}` : "");
+    if (displayInput) displayInput.value = labelVal || (manzanaVal && loteVal ? `${manzanaVal} ${loteVal}` : (manzanaVal ? `Mz. ${manzanaVal}` : ""));
 
     const modal = document.getElementById("rename-shape-modal");
     if (modal) modal.classList.remove("hidden");
     if (window.lucide) lucide.createIcons();
 
     setTimeout(() => {
-        if (manzanaInput) manzanaInput.focus();
+        if (manzanaInput) {
+            manzanaInput.focus();
+            if (manzanaVal) {
+                if (loteInput && !loteVal) {
+                    loteInput.focus();
+                } else {
+                    manzanaInput.select();
+                }
+            }
+        }
     }, 80);
 }
 
@@ -1126,6 +1284,9 @@ function handleSaveRenameShape(event) {
     ann.lote = lote;
     ann.label = displayLabel || (manzana && lote ? `${manzana} ${lote}` : (ann.label || "Forma"));
 
+    if (manzana) lastUsedManzana = manzana;
+    if (lote) lastUsedLote = lote;
+
     setHasUnsavedChanges(true);
     renderOverlayAnnotations();
     updateAnnotationsListUI();
@@ -1137,11 +1298,24 @@ function editAnnotationLabel(id) {
     openRenameShapeModal(id);
 }
 
+// Global modal esc key listener
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+        const modal = document.getElementById("rename-shape-modal");
+        if (modal && !modal.classList.contains("hidden")) {
+            closeRenameShapeModal();
+        }
+    }
+});
+
 window.openRenameShapeModal = openRenameShapeModal;
 window.closeRenameShapeModal = closeRenameShapeModal;
 window.syncRenamePreview = syncRenamePreview;
 window.handleSaveRenameShape = handleSaveRenameShape;
 window.editAnnotationLabel = editAnnotationLabel;
+window.handleMzLtSearch = handleMzLtSearch;
+window.clearMzLtSearch = clearMzLtSearch;
+window.centerViewportOnAnnotation = centerViewportOnAnnotation;
 
 function deleteAnnotationById(id) {
     saveStateForUndo();
