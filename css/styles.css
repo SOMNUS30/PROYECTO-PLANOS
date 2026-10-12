@@ -1083,8 +1083,7 @@ body.in-editor-mode .content-body {
 
 #pdf-render-canvas {
     display: block;
-    image-rendering: -webkit-optimize-contrast;
-    image-rendering: crisp-edges;
+    image-rendering: auto;
 }
 
 #annotation-overlay-canvas {
@@ -1092,8 +1091,7 @@ body.in-editor-mode .content-body {
     top: 0;
     left: 0;
     cursor: crosshair;
-    image-rendering: -webkit-optimize-contrast;
-    image-rendering: crisp-edges;
+    image-rendering: auto;
 }
 
 /* 3. ADMIN USER MANAGEMENT VIEW */

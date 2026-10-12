@@ -110,6 +110,9 @@ let activePdfArrayBuffer = null;
 let currentPageNum = 1;
 let totalPagesNum = 1;
 let zoomScale = 1.0;
+let currentPdfPageUnscaledWidth = 1400;
+let currentPdfPageUnscaledHeight = 950;
+let zoomDebounceTimer = null;
 
 let activeTool = 'select'; // select, pan, rect, circle, line, draw, text, stamp
 let currentColor = '#ef4444';
@@ -215,15 +218,33 @@ function initPdfEditorEngine() {
                 updateCursorStyle();
             }
         });
+
+        // Ctrl + Mouse Wheel / Pinch Vector Zoom around cursor
+        viewport.addEventListener("wheel", (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? 0.15 : -0.15;
+                zoomAroundPoint(delta, e.clientX, e.clientY);
+            }
+        }, { passive: false });
     }
 
-    // SPACEBAR PAN DETECTOR
+    // KEYBOARD SHORTCUTS (Spacebar Pan, Ctrl +/-/0 Zoom)
     document.addEventListener("keydown", (e) => {
-        if (e.code === "Space" && !isSpacePressed) {
-            const activeView = document.querySelector(".app-view.active-view");
-            if (activeView && activeView.id === "view-editor") {
+        const activeView = document.querySelector(".app-view.active-view");
+        if (activeView && activeView.id === "view-editor") {
+            if (e.code === "Space" && !isSpacePressed) {
                 isSpacePressed = true;
                 updateCursorStyle();
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === "+" || e.key === "=")) {
+                e.preventDefault();
+                zoomCanvas(0.15);
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === "-" || e.key === "_")) {
+                e.preventDefault();
+                zoomCanvas(-0.15);
+            } else if ((e.ctrlKey || e.metaKey) && e.key === "0") {
+                e.preventDefault();
+                resetZoom();
             }
         }
     });
@@ -235,6 +256,7 @@ function initPdfEditorEngine() {
         }
     });
 }
+
 
 function updateCursorStyle() {
     const viewport = document.getElementById("canvas-viewport");
@@ -301,14 +323,32 @@ function renderBlueprintBackground(sampleType) {
     document.getElementById("current-page-num").textContent = "1";
     document.getElementById("total-pages-num").textContent = "1";
 
+    const dpr = window.devicePixelRatio || 1;
     const baseWidth = Math.round(1400 * zoomScale);
     const baseHeight = Math.round(950 * zoomScale);
 
-    pdfCanvas.width = baseWidth;
-    pdfCanvas.height = baseHeight;
-    overlayCanvas.width = baseWidth;
-    overlayCanvas.height = baseHeight;
+    currentPdfPageUnscaledWidth = 1400;
+    currentPdfPageUnscaledHeight = 950;
 
+    // Buffer dimensions multiplied by DPR for ultra-sharp high-DPI rendering
+    pdfCanvas.width = Math.round(baseWidth * dpr);
+    pdfCanvas.height = Math.round(baseHeight * dpr);
+    pdfCanvas.style.width = `${baseWidth}px`;
+    pdfCanvas.style.height = `${baseHeight}px`;
+
+    overlayCanvas.width = Math.round(baseWidth * dpr);
+    overlayCanvas.height = Math.round(baseHeight * dpr);
+    overlayCanvas.style.width = `${baseWidth}px`;
+    overlayCanvas.style.height = `${baseHeight}px`;
+
+    const canvasContainer = document.getElementById("canvas-container");
+    if (canvasContainer) {
+        canvasContainer.style.width = `${baseWidth}px`;
+        canvasContainer.style.height = `${baseHeight}px`;
+    }
+
+    pdfCtx.save();
+    pdfCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     pdfCtx.imageSmoothingEnabled = true;
     pdfCtx.imageSmoothingQuality = 'high';
 
@@ -377,6 +417,7 @@ function renderBlueprintBackground(sampleType) {
         pdfCtx.fillText("DETALLE CIMENTACIONES Y ZAPATAS ESTRUCTURALES", 150 * zoomScale, 170 * zoomScale);
     }
 
+    pdfCtx.restore();
     renderOverlayAnnotations();
 }
 
@@ -415,24 +456,57 @@ function renderPdfPage(pageNum) {
     if (!pdfDoc) return;
 
     if (activePdfRenderTask) {
-        activePdfRenderTask.cancel();
+        try {
+            activePdfRenderTask.cancel();
+        } catch (e) {}
         activePdfRenderTask = null;
     }
 
     pdfDoc.getPage(pageNum).then(page => {
-        const viewport = page.getViewport({ scale: 2.0 * zoomScale });
+        const dpr = window.devicePixelRatio || 1;
+        const unscaledViewport = page.getViewport({ scale: 1.0 });
+        currentPdfPageUnscaledWidth = unscaledViewport.width;
+        currentPdfPageUnscaledHeight = unscaledViewport.height;
+
+        // Viewport vector a escala exacta para garantizar máxima definición
+        const viewport = page.getViewport({ scale: zoomScale });
         
-        pdfCanvas.width = Math.round(viewport.width);
-        pdfCanvas.height = Math.round(viewport.height);
-        overlayCanvas.width = pdfCanvas.width;
-        overlayCanvas.height = pdfCanvas.height;
+        const canvasW = Math.round(viewport.width * dpr);
+        const canvasH = Math.round(viewport.height * dpr);
+        const cssW = `${Math.round(viewport.width)}px`;
+        const cssH = `${Math.round(viewport.height)}px`;
+
+        pdfCanvas.width = canvasW;
+        pdfCanvas.height = canvasH;
+        pdfCanvas.style.width = cssW;
+        pdfCanvas.style.height = cssH;
+
+        overlayCanvas.width = canvasW;
+        overlayCanvas.height = canvasH;
+        overlayCanvas.style.width = cssW;
+        overlayCanvas.style.height = cssH;
+
+        const canvasContainer = document.getElementById("canvas-container");
+        if (canvasContainer) {
+            canvasContainer.style.width = cssW;
+            canvasContainer.style.height = cssH;
+        }
+
+        pdfCtx.save();
+        pdfCtx.setTransform(1, 0, 0, 1, 0, 0);
+        pdfCtx.clearRect(0, 0, canvasW, canvasH);
+        pdfCtx.restore();
 
         pdfCtx.imageSmoothingEnabled = true;
         pdfCtx.imageSmoothingQuality = 'high';
 
+        // Renderizado vectorial completo usando la matriz de transformación de PDF.js
+        const transform = (dpr !== 1) ? [dpr, 0, 0, dpr, 0, 0] : null;
+
         const renderContext = {
             canvasContext: pdfCtx,
-            viewport: viewport
+            viewport: viewport,
+            transform: transform
         };
 
         const renderTask = page.render(renderContext);
@@ -446,12 +520,23 @@ function renderPdfPage(pageNum) {
                 console.error("PDF Render Error:", err);
             }
         });
+    }).catch(err => {
+        console.error("Error obteniendo página PDF:", err);
     });
 }
 
 // Render Annotation Shapes on top of PDF Canvas
 function renderOverlayAnnotations() {
+    const dpr = window.devicePixelRatio || 1;
+    overlayCtx.save();
+    overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
     overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    overlayCtx.restore();
+
+    overlayCtx.save();
+    if (dpr !== 1) {
+        overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
     annotations.forEach(ann => {
         if (ann.page && ann.page !== currentPageNum) return;
@@ -549,16 +634,15 @@ function renderOverlayAnnotations() {
 
         overlayCtx.restore();
     });
+    overlayCtx.restore();
 }
 
 // Convert Mouse/Touch Client Coordinates to 1:1 Unscaled Canvas Coordinates
 function getCanvasMouseCoords(e) {
     const rect = overlayCanvas.getBoundingClientRect();
-    const scaleX = overlayCanvas.width / rect.width;
-    const scaleY = overlayCanvas.height / rect.height;
     return {
-        x: ((e.clientX - rect.left) * scaleX) / zoomScale,
-        y: ((e.clientY - rect.top) * scaleY) / zoomScale
+        x: (e.clientX - rect.left) / zoomScale,
+        y: (e.clientY - rect.top) / zoomScale
     };
 }
 
@@ -643,7 +727,11 @@ function handleCanvasMouseMove(e) {
 
     renderOverlayAnnotations();
 
+    const dpr = window.devicePixelRatio || 1;
     overlayCtx.save();
+    if (dpr !== 1) {
+        overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
     overlayCtx.strokeStyle = currentColor;
     overlayCtx.lineWidth = currentStrokeWidth * zoomScale;
     overlayCtx.fillStyle = getFillColorRGBA(currentColor, currentFill);
@@ -982,9 +1070,11 @@ async function exportAnnotatedPDF() {
         const targetPage = pages[currentPageNum - 1] || pages[0];
         const { width, height } = targetPage.getSize();
 
-        // Scale ratio from Canvas coordinates to PDF Page coordinates
-        const scaleX = width / pdfCanvas.width;
-        const scaleY = height / pdfCanvas.height;
+        // Mapeo exacto a coordenadas nativas del PDF (independiente del zoom de pantalla o DPR)
+        const unscaledW = currentPdfPageUnscaledWidth || 1400;
+        const unscaledH = currentPdfPageUnscaledHeight || 950;
+        const scaleX = width / unscaledW;
+        const scaleY = height / unscaledH;
 
         // Embed Vector Annotations directly into native PDF Page
         annotations.forEach(ann => {
@@ -995,10 +1085,10 @@ async function exportAnnotatedPDF() {
             const g = (parseInt(hex.slice(3, 5), 16) || 68) / 255;
             const b = (parseInt(hex.slice(5, 7), 16) || 68) / 255;
 
-            const x = ann.x * zoomScale * scaleX;
-            const y = height - (ann.y * zoomScale * scaleY); // PDF coordinate origin is bottom-left
-            const w = (ann.width || 0) * zoomScale * scaleX;
-            const h = (ann.height || 0) * zoomScale * scaleY;
+            const x = ann.x * scaleX;
+            const y = height - (ann.y * scaleY); // PDF coordinate origin is bottom-left
+            const w = (ann.width || 0) * scaleX;
+            const h = (ann.height || 0) * scaleY;
 
             if (ann.type === "rect") {
                 targetPage.drawRectangle({
@@ -1014,18 +1104,29 @@ async function exportAnnotatedPDF() {
                 targetPage.drawEllipse({
                     x: x,
                     y: y,
-                    xScale: (ann.radius || 35) * zoomScale * scaleX,
-                    yScale: (ann.radius || 35) * zoomScale * scaleY,
+                    xScale: (ann.radius || 35) * scaleX,
+                    yScale: (ann.radius || 35) * scaleY,
                     borderColor: rgb(r, g, b),
                     borderWidth: (ann.strokeWidth || 4) * scaleX
                 });
             } else if (ann.type === "line") {
                 targetPage.drawLine({
                     start: { x: x, y: y },
-                    end: { x: ann.endX * zoomScale * scaleX, y: height - (ann.endY * zoomScale * scaleY) },
+                    end: { x: ann.endX * scaleX, y: height - (ann.endY * scaleY) },
                     color: rgb(r, g, b),
                     thickness: (ann.strokeWidth || 4) * scaleX
                 });
+            } else if (ann.type === "draw" && ann.points && ann.points.length > 1) {
+                for (let i = 0; i < ann.points.length - 1; i++) {
+                    const p1 = ann.points[i];
+                    const p2 = ann.points[i + 1];
+                    targetPage.drawLine({
+                        start: { x: p1.x * scaleX, y: height - (p1.y * scaleY) },
+                        end: { x: p2.x * scaleX, y: height - (p2.y * scaleY) },
+                        color: rgb(r, g, b),
+                        thickness: (ann.strokeWidth || 3) * scaleX
+                    });
+                }
             } else if (ann.type === "text" || ann.type === "stamp") {
                 targetPage.drawText(ann.text || "APROBADO", {
                     x: x,
@@ -1064,12 +1165,69 @@ function changePage(delta) {
 }
 
 function zoomCanvas(delta) {
-    zoomScale = Math.max(0.4, Math.min(3.0, zoomScale + delta));
+    const viewport = document.getElementById("canvas-viewport");
+    const oldScale = zoomScale;
+    const newScale = Math.max(0.2, Math.min(5.0, Math.round((zoomScale + delta) * 100) / 100));
+    if (newScale === oldScale) return;
+
+    // Preserve viewport center
+    let centerNormX = 0.5;
+    let centerNormY = 0.5;
+    if (viewport && viewport.scrollWidth > 0 && viewport.scrollHeight > 0) {
+        centerNormX = (viewport.scrollLeft + viewport.clientWidth / 2) / viewport.scrollWidth;
+        centerNormY = (viewport.scrollTop + viewport.clientHeight / 2) / viewport.scrollHeight;
+    }
+
+    zoomScale = newScale;
     const zoomText = document.getElementById("zoom-percentage");
     if (zoomText) zoomText.textContent = `${Math.round(zoomScale * 100)}%`;
 
-    if (pdfDoc) renderPdfPage(currentPageNum);
-    else renderBlueprintBackground(activeDocument ? activeDocument.sampleType : "blueprint-arch");
+    if (pdfDoc) {
+        renderPdfPage(currentPageNum);
+    } else {
+        renderBlueprintBackground(activeDocument ? activeDocument.sampleType : "blueprint-arch");
+    }
+
+    if (viewport) {
+        requestAnimationFrame(() => {
+            viewport.scrollLeft = (viewport.scrollWidth * centerNormX) - viewport.clientWidth / 2;
+            viewport.scrollTop = (viewport.scrollHeight * centerNormY) - viewport.clientHeight / 2;
+        });
+    }
+}
+
+function zoomAroundPoint(delta, clientX, clientY) {
+    const viewport = document.getElementById("canvas-viewport");
+    if (!viewport) {
+        zoomCanvas(delta);
+        return;
+    }
+
+    const oldScale = zoomScale;
+    const newScale = Math.max(0.2, Math.min(5.0, Math.round((zoomScale + delta) * 100) / 100));
+    if (newScale === oldScale) return;
+
+    const vRect = viewport.getBoundingClientRect();
+    const mouseVX = clientX - vRect.left;
+    const mouseVY = clientY - vRect.top;
+
+    const contentX = (viewport.scrollLeft + mouseVX) / oldScale;
+    const contentY = (viewport.scrollTop + mouseVY) / oldScale;
+
+    zoomScale = newScale;
+    const zoomText = document.getElementById("zoom-percentage");
+    if (zoomText) zoomText.textContent = `${Math.round(zoomScale * 100)}%`;
+
+    if (pdfDoc) {
+        renderPdfPage(currentPageNum);
+    } else {
+        renderBlueprintBackground(activeDocument ? activeDocument.sampleType : "blueprint-arch");
+    }
+
+    requestAnimationFrame(() => {
+        viewport.scrollLeft = contentX * newScale - mouseVX;
+        viewport.scrollTop = contentY * newScale - mouseVY;
+    });
 }
 
 function resetZoom() {
@@ -1085,9 +1243,9 @@ function fitCanvasToWidth() {
     const viewport = document.getElementById("canvas-viewport");
     if (!viewport) return;
     
-    const availableWidth = viewport.clientWidth - 48;
-    const baseUnscaled = 1400;
-    zoomScale = Math.max(0.4, Math.min(2.8, (availableWidth / baseUnscaled)));
+    const availableWidth = viewport.clientWidth - 56;
+    const baseUnscaled = currentPdfPageUnscaledWidth || 1400;
+    zoomScale = Math.max(0.2, Math.min(5.0, Math.round((availableWidth / baseUnscaled) * 100) / 100));
     
     const zoomText = document.getElementById("zoom-percentage");
     if (zoomText) zoomText.textContent = `${Math.round(zoomScale * 100)}%`;
