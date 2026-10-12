@@ -556,12 +556,22 @@ function renderOverlayAnnotations() {
         const y = ann.y * zoomScale;
         const w = (ann.width || 0) * zoomScale;
         const h = (ann.height || 0) * zoomScale;
-        const r = (ann.radius || 35) * zoomScale;
+        const r = (typeof ann.radius === 'number' ? ann.radius : 14) * zoomScale;
 
         switch (ann.type) {
             case "rect":
                 overlayCtx.fillRect(x, y, w, h);
                 overlayCtx.strokeRect(x, y, w, h);
+                if (ann.label) {
+                    overlayCtx.save();
+                    overlayCtx.fillStyle = ann.color || "#ef4444";
+                    const fontSz = Math.max(9, Math.min(14, Math.round(11 * zoomScale)));
+                    overlayCtx.font = `bold ${fontSz}px Outfit, sans-serif`;
+                    overlayCtx.textAlign = "center";
+                    overlayCtx.textBaseline = "middle";
+                    overlayCtx.fillText(ann.label, x + w / 2, y + h / 2);
+                    overlayCtx.restore();
+                }
                 break;
 
             case "circle":
@@ -569,6 +579,16 @@ function renderOverlayAnnotations() {
                 overlayCtx.arc(x, y, r, 0, 2 * Math.PI);
                 overlayCtx.fill();
                 overlayCtx.stroke();
+                if (ann.label) {
+                    overlayCtx.save();
+                    overlayCtx.fillStyle = ann.color || "#ef4444";
+                    const fontSz = Math.max(9, Math.min(14, Math.round(Math.min(r * 0.8, 11 * zoomScale))));
+                    overlayCtx.font = `bold ${fontSz}px Outfit, sans-serif`;
+                    overlayCtx.textAlign = "center";
+                    overlayCtx.textBaseline = "middle";
+                    overlayCtx.fillText(ann.label, x, y);
+                    overlayCtx.restore();
+                }
                 break;
 
             case "line":
@@ -628,7 +648,13 @@ function renderOverlayAnnotations() {
             overlayCtx.strokeStyle = "#6366f1";
             overlayCtx.lineWidth = 2.5 * zoomScale;
             overlayCtx.setLineDash([6 * zoomScale, 6 * zoomScale]);
-            overlayCtx.strokeRect(x - 6 * zoomScale, y - 6 * zoomScale, w + 12 * zoomScale, h + 12 * zoomScale);
+            if (ann.type === "circle") {
+                overlayCtx.beginPath();
+                overlayCtx.arc(x, y, r + 4 * zoomScale, 0, 2 * Math.PI);
+                overlayCtx.stroke();
+            } else {
+                overlayCtx.strokeRect(x - 4 * zoomScale, y - 4 * zoomScale, w + 8 * zoomScale, h + 8 * zoomScale);
+            }
             overlayCtx.setLineDash([]);
         }
 
@@ -661,7 +687,8 @@ function handleCanvasMouseDown(e) {
                 return startX >= ann.x && startX <= ann.x + ann.width && startY >= ann.y && startY <= ann.y + ann.height;
             } else if (ann.type === "circle") {
                 const dist = Math.hypot(startX - ann.x, startY - ann.y);
-                return dist <= (ann.radius || 35);
+                const r = typeof ann.radius === "number" ? ann.radius : 14;
+                return dist <= (r + 4);
             } else if (ann.type === "stamp" || ann.type === "text") {
                 return startX >= ann.x && startX <= ann.x + 140 && startY >= ann.y - 20 && startY <= ann.y + 45;
             }
@@ -682,6 +709,8 @@ function handleCanvasMouseDown(e) {
     } else if (activeTool === "text") {
         const textValue = prompt("Ingresa el texto o nota para la ubicación:", "Nota de revisión");
         if (textValue) {
+            const activeUser = (typeof getCurrentUser === "function") ? getCurrentUser() : null;
+            const creator = activeUser ? (activeUser.name || activeUser.username) : "Usuario";
             annotations.push({
                 id: "ann_" + Date.now(),
                 type: "text",
@@ -690,7 +719,10 @@ function handleCanvasMouseDown(e) {
                 y: startY,
                 text: textValue,
                 color: currentColor,
-                fontSize: 18
+                fontSize: 18,
+                createdBy: creator,
+                createdById: activeUser ? activeUser.id : null,
+                createdAt: new Date().toISOString()
             });
             renderOverlayAnnotations();
             updateAnnotationsListUI();
@@ -703,6 +735,8 @@ function handleCanvasMouseDown(e) {
         if (stampChoice === "2") { stampText = "REVISAR"; stampColor = "#f59e0b"; }
         if (stampChoice === "3") { stampText = "RECHAZADO"; stampColor = "#ef4444"; }
 
+        const activeUser = (typeof getCurrentUser === "function") ? getCurrentUser() : null;
+        const creator = activeUser ? (activeUser.name || activeUser.username) : "Usuario";
         annotations.push({
             id: "ann_" + Date.now(),
             type: "stamp",
@@ -710,7 +744,10 @@ function handleCanvasMouseDown(e) {
             x: startX,
             y: startY,
             text: stampText,
-            color: stampColor
+            color: stampColor,
+            createdBy: creator,
+            createdById: activeUser ? activeUser.id : null,
+            createdAt: new Date().toISOString()
         });
         renderOverlayAnnotations();
         updateAnnotationsListUI();
@@ -742,10 +779,12 @@ function handleCanvasMouseMove(e) {
     const cY = currentY * zoomScale;
 
     if (activeTool === "rect") {
-        const width = cX - sX;
-        const height = cY - sY;
-        overlayCtx.fillRect(sX, sY, width, height);
-        overlayCtx.strokeRect(sX, sY, width, height);
+        const x = Math.min(sX, cX);
+        const y = Math.min(sY, cY);
+        const width = Math.abs(cX - sX);
+        const height = Math.abs(cY - sY);
+        overlayCtx.fillRect(x, y, width, height);
+        overlayCtx.strokeRect(x, y, width, height);
     } else if (activeTool === "circle") {
         const radius = Math.hypot(cX - sX, cY - sY) / 2;
         const centerX = sX + (cX - sX) / 2;
@@ -781,37 +820,57 @@ function handleCanvasMouseUp(e) {
     const endY = coords.y;
 
     const newId = "ann_" + Date.now();
+    const activeUser = (typeof getCurrentUser === "function") ? getCurrentUser() : null;
+    const creatorName = activeUser ? (activeUser.name || activeUser.username) : "Usuario";
 
     if (activeTool === "rect") {
         const dragW = Math.abs(endX - startX);
         const dragH = Math.abs(endY - startY);
-        const w = (dragW < 5 && dragH < 5) ? 120 : dragW;
-        const h = (dragW < 5 && dragH < 5) ? 80 : dragH;
+        const isClick = (Math.max(dragW, dragH) * zoomScale < 3);
+        const w = isClick ? Math.round(32 / zoomScale) : Math.max(1, dragW);
+        const h = isClick ? Math.round(22 / zoomScale) : Math.max(1, dragH);
+        const x = isClick ? (startX - w / 2) : Math.min(startX, endX);
+        const y = isClick ? (startY - h / 2) : Math.min(startY, endY);
+
         annotations.push({
             id: newId,
             type: "rect",
             page: currentPageNum,
-            x: Math.min(startX, endX),
-            y: Math.min(startY, endY),
+            x: x,
+            y: y,
             width: w,
             height: h,
             color: currentColor,
             fillColor: getFillColorRGBA(currentColor, currentFill),
-            strokeWidth: currentStrokeWidth
+            strokeWidth: currentStrokeWidth,
+            createdBy: creatorName,
+            createdById: activeUser ? activeUser.id : null,
+            createdAt: new Date().toISOString(),
+            manzana: "",
+            lote: ""
         });
     } else if (activeTool === "circle") {
         const dragDist = Math.hypot(endX - startX, endY - startY);
-        const radius = dragDist < 5 ? 35 : Math.max(2, dragDist / 2);
+        const isClick = (dragDist * zoomScale < 3);
+        const radius = isClick ? Math.round(14 / zoomScale) : Math.max(1, dragDist / 2);
+        const centerX = isClick ? startX : (startX + (endX - startX) / 2);
+        const centerY = isClick ? startY : (startY + (endY - startY) / 2);
+
         annotations.push({
             id: newId,
             type: "circle",
             page: currentPageNum,
-            x: startX + (endX - startX) / 2,
-            y: startY + (endY - startY) / 2,
+            x: centerX,
+            y: centerY,
             radius: radius,
             color: currentColor,
             fillColor: getFillColorRGBA(currentColor, currentFill),
-            strokeWidth: currentStrokeWidth
+            strokeWidth: currentStrokeWidth,
+            createdBy: creatorName,
+            createdById: activeUser ? activeUser.id : null,
+            createdAt: new Date().toISOString(),
+            manzana: "",
+            lote: ""
         });
     } else if (activeTool === "line") {
         annotations.push({
@@ -823,7 +882,12 @@ function handleCanvasMouseUp(e) {
             endX: endX,
             endY: endY,
             color: currentColor,
-            strokeWidth: currentStrokeWidth
+            strokeWidth: currentStrokeWidth,
+            createdBy: creatorName,
+            createdById: activeUser ? activeUser.id : null,
+            createdAt: new Date().toISOString(),
+            manzana: "",
+            lote: ""
         });
     } else if (activeTool === "draw") {
         annotations.push({
@@ -832,7 +896,12 @@ function handleCanvasMouseUp(e) {
             page: currentPageNum,
             points: currentFreehandPoints,
             color: currentColor,
-            strokeWidth: currentStrokeWidth
+            strokeWidth: currentStrokeWidth,
+            createdBy: creatorName,
+            createdById: activeUser ? activeUser.id : null,
+            createdAt: new Date().toISOString(),
+            manzana: "",
+            lote: ""
         });
     }
 
@@ -942,14 +1011,20 @@ function updateAnnotationsListUI() {
         if (ann.type === "stamp") { defaultTypeLabel = `Sello: ${ann.text}`; iconName = "stamp"; }
 
         const displayLabel = ann.label || defaultTypeLabel;
+        const creator = ann.createdBy || ann.createdByName || (activeDocument && (activeDocument.uploadedByName || activeDocument.uploadedBy)) || "Usuario";
 
         item.innerHTML = `
             <div style="display:flex; align-items:center; gap:8px; flex:1; cursor:pointer; overflow:hidden;" onclick="selectAnnotationById('${ann.id}')">
                 <i data-lucide="${iconName}" style="color:${ann.color}; width:16px; flex-shrink:0;"></i> 
-                <span style="font-weight:500; font-size:0.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${displayLabel}">${displayLabel}</span>
+                <div style="display:flex; flex-direction:column; overflow:hidden; min-width:0;">
+                    <span style="font-weight:600; font-size:0.86rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${displayLabel}">${displayLabel}</span>
+                    <span style="font-size:0.70rem; color:var(--text-muted); display:inline-flex; align-items:center; gap:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;" title="Insertado por ${creator}">
+                        <i data-lucide="user" style="width:10px; height:10px; flex-shrink:0;"></i> ${creator}
+                    </span>
+                </div>
             </div>
-            <div style="display:flex; gap:4px; align-items:center;">
-                <button class="btn btn-icon btn-sm btn-secondary" title="Renombrar (Manzana / Lote)" onclick="event.stopPropagation(); editAnnotationLabel('${ann.id}')">
+            <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
+                <button class="btn btn-icon btn-sm btn-secondary" title="Renombrar (Manzana / Lote)" onclick="event.stopPropagation(); openRenameShapeModal('${ann.id}')">
                     <i data-lucide="pencil" style="width:13px; height:13px;"></i>
                 </button>
                 <button class="btn btn-icon btn-sm btn-outline-danger" title="Eliminar elemento" onclick="event.stopPropagation(); deleteAnnotationById('${ann.id}')">&times;</button>
@@ -967,23 +1042,106 @@ function selectAnnotationById(id) {
     updateAnnotationsListUI();
 }
 
-function editAnnotationLabel(id) {
+function openRenameShapeModal(id) {
     const ann = annotations.find(a => a.id === id);
     if (!ann) return;
 
-    const currentLabel = ann.label || "";
-    const newLabel = prompt("Ingresa el identificador para esta forma (Ej: Manzana A - Lote 15):", currentLabel || "Manzana A - Lote 15");
+    const idInput = document.getElementById("rename-shape-id");
+    const manzanaInput = document.getElementById("rename-manzana");
+    const loteInput = document.getElementById("rename-lote");
+    const displayInput = document.getElementById("rename-label-display");
 
-    if (newLabel !== null) {
-        saveStateForUndo();
-        ann.label = newLabel.trim();
-        renderOverlayAnnotations();
-        updateAnnotationsListUI();
-        if (ann.label) {
-            showToast(`Identificación guardada: "${ann.label}"`, "success");
+    if (idInput) idInput.value = ann.id;
+
+    let manzanaVal = ann.manzana || "";
+    let loteVal = ann.lote || "";
+    let labelVal = ann.label || "";
+
+    // Parse existing label if manzana/lote not yet set
+    if (!manzanaVal && !loteVal && labelVal) {
+        const match = labelVal.match(/(?:mz\.?|manzana\s*)?([a-zA-Z0-9]+)\s*[-_/\s]\s*(?:lt\.?|lote\s*)?([a-zA-Z0-9]+)/i);
+        if (match) {
+            manzanaVal = match[1];
+            loteVal = match[2];
+        } else {
+            const parts = labelVal.trim().split(/\s+/);
+            if (parts.length === 2) {
+                manzanaVal = parts[0];
+                loteVal = parts[1];
+            }
         }
     }
+
+    if (manzanaInput) manzanaInput.value = manzanaVal;
+    if (loteInput) loteInput.value = loteVal;
+    if (displayInput) displayInput.value = labelVal || (manzanaVal && loteVal ? `${manzanaVal} ${loteVal}` : "");
+
+    const modal = document.getElementById("rename-shape-modal");
+    if (modal) modal.classList.remove("hidden");
+    if (window.lucide) lucide.createIcons();
+
+    setTimeout(() => {
+        if (manzanaInput) manzanaInput.focus();
+    }, 80);
 }
+
+function closeRenameShapeModal() {
+    const modal = document.getElementById("rename-shape-modal");
+    if (modal) modal.classList.add("hidden");
+}
+
+function syncRenamePreview() {
+    const manzana = document.getElementById("rename-manzana") ? document.getElementById("rename-manzana").value.trim() : "";
+    const lote = document.getElementById("rename-lote") ? document.getElementById("rename-lote").value.trim() : "";
+    const displayInput = document.getElementById("rename-label-display");
+    if (!displayInput) return;
+
+    if (manzana && lote) {
+        displayInput.value = `${manzana} ${lote}`;
+    } else if (manzana) {
+        displayInput.value = `Mz. ${manzana}`;
+    } else if (lote) {
+        displayInput.value = `Lote ${lote}`;
+    }
+}
+
+function handleSaveRenameShape(event) {
+    if (event) event.preventDefault();
+    const idInput = document.getElementById("rename-shape-id");
+    if (!idInput) return;
+    const id = idInput.value;
+    const ann = annotations.find(a => a.id === id);
+    if (!ann) {
+        closeRenameShapeModal();
+        return;
+    }
+
+    const manzana = document.getElementById("rename-manzana") ? document.getElementById("rename-manzana").value.trim() : "";
+    const lote = document.getElementById("rename-lote") ? document.getElementById("rename-lote").value.trim() : "";
+    const displayInput = document.getElementById("rename-label-display");
+    const displayLabel = displayInput ? displayInput.value.trim() : "";
+
+    saveStateForUndo();
+    ann.manzana = manzana;
+    ann.lote = lote;
+    ann.label = displayLabel || (manzana && lote ? `${manzana} ${lote}` : (ann.label || "Forma"));
+
+    setHasUnsavedChanges(true);
+    renderOverlayAnnotations();
+    updateAnnotationsListUI();
+    closeRenameShapeModal();
+    showToast(`Elemento identificado como: "${ann.label}"`, "success");
+}
+
+function editAnnotationLabel(id) {
+    openRenameShapeModal(id);
+}
+
+window.openRenameShapeModal = openRenameShapeModal;
+window.closeRenameShapeModal = closeRenameShapeModal;
+window.syncRenamePreview = syncRenamePreview;
+window.handleSaveRenameShape = handleSaveRenameShape;
+window.editAnnotationLabel = editAnnotationLabel;
 
 function deleteAnnotationById(id) {
     saveStateForUndo();
@@ -1100,15 +1258,31 @@ async function exportAnnotatedPDF() {
                     borderWidth: (ann.strokeWidth || 4) * scaleX,
                     opacity: 0.95
                 });
+                if (ann.label) {
+                    targetPage.drawText(ann.label, {
+                        x: x + 4,
+                        y: y - (h / 2) - 3,
+                        size: Math.max(7, Math.min(11, 9 * scaleX)),
+                        color: rgb(r, g, b)
+                    });
+                }
             } else if (ann.type === "circle") {
                 targetPage.drawEllipse({
                     x: x,
                     y: y,
-                    xScale: (ann.radius || 35) * scaleX,
-                    yScale: (ann.radius || 35) * scaleY,
+                    xScale: (typeof ann.radius === 'number' ? ann.radius : 14) * scaleX,
+                    yScale: (typeof ann.radius === 'number' ? ann.radius : 14) * scaleY,
                     borderColor: rgb(r, g, b),
                     borderWidth: (ann.strokeWidth || 4) * scaleX
                 });
+                if (ann.label) {
+                    targetPage.drawText(ann.label, {
+                        x: x - (ann.label.length * 2.8),
+                        y: y - 3,
+                        size: Math.max(7, Math.min(11, 9 * scaleX)),
+                        color: rgb(r, g, b)
+                    });
+                }
             } else if (ann.type === "line") {
                 targetPage.drawLine({
                     start: { x: x, y: y },
