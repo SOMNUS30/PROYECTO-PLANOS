@@ -245,6 +245,12 @@ function initPdfEditorEngine() {
             } else if ((e.ctrlKey || e.metaKey) && e.key === "0") {
                 e.preventDefault();
                 resetZoom();
+            } else if ((e.key === "Delete" || e.key === "Backspace") && selectedAnnotationId) {
+                const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
+                if (tag !== "input" && tag !== "textarea") {
+                    e.preventDefault();
+                    requestDeleteAnnotation(selectedAnnotationId);
+                }
             }
         }
     });
@@ -984,12 +990,7 @@ function deleteSelectedAnnotation() {
         showToast("Selecciona una forma o elemento primero.", "warning");
         return;
     }
-    saveStateForUndo();
-    annotations = annotations.filter(a => a.id !== selectedAnnotationId);
-    selectedAnnotationId = null;
-    renderOverlayAnnotations();
-    updateAnnotationsListUI();
-    showToast("Elemento eliminado", "info");
+    requestDeleteAnnotation(selectedAnnotationId);
 }
 
 // BUSCADOR MZ Y LT & CENTRADO EN CANVAS
@@ -1167,7 +1168,7 @@ function updateAnnotationsListUI() {
                 <button class="btn btn-icon btn-sm btn-secondary" title="Renombrar (Manzana / Lote)" onclick="event.stopPropagation(); openRenameShapeModal('${ann.id}')">
                     <i data-lucide="pencil" style="width:13px; height:13px;"></i>
                 </button>
-                <button class="btn btn-icon btn-sm btn-outline-danger" title="Eliminar elemento" onclick="event.stopPropagation(); deleteAnnotationById('${ann.id}')">&times;</button>
+                <button class="btn btn-icon btn-sm btn-outline-danger" title="Eliminar elemento" onclick="event.stopPropagation(); requestDeleteAnnotation('${ann.id}')">&times;</button>
             </div>
         `;
         listContainer.appendChild(item);
@@ -1298,12 +1299,79 @@ function editAnnotationLabel(id) {
     openRenameShapeModal(id);
 }
 
-// Global modal esc key listener
+// MODAL DE CONFIRMACIÓN DE ELIMINACIÓN
+let pendingDeleteAnnotationId = null;
+
+function requestDeleteAnnotation(id) {
+    const ann = annotations.find(a => a.id === id);
+    if (!ann) return;
+
+    pendingDeleteAnnotationId = id;
+
+    // Resaltar elemento en el canvas y centrar vista para que el usuario verifique cuál es
+    selectedAnnotationId = id;
+    renderOverlayAnnotations();
+    centerViewportOnAnnotation(ann);
+
+    const modal = document.getElementById("confirm-delete-modal");
+    const msgEl = document.getElementById("confirm-delete-message");
+    
+    const label = ann.label || (ann.type === "rect" ? "Rectángulo" : (ann.type === "circle" ? "Círculo" : "Elemento"));
+    
+    if (msgEl) {
+        msgEl.innerHTML = `¿Estás seguro de que deseas eliminar <b>"${label}"</b>?<br><span style="font-size:0.80rem; opacity:0.8; display:inline-block; margin-top:4px;">Esta forma se removerá de las capas de edición del plano.</span>`;
+    }
+
+    if (modal) {
+        modal.classList.remove("hidden");
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+function closeConfirmDeleteModal() {
+    const modal = document.getElementById("confirm-delete-modal");
+    if (modal) modal.classList.add("hidden");
+    pendingDeleteAnnotationId = null;
+}
+
+function executeConfirmedDelete() {
+    if (!pendingDeleteAnnotationId) {
+        closeConfirmDeleteModal();
+        return;
+    }
+    const idToDelete = pendingDeleteAnnotationId;
+    closeConfirmDeleteModal();
+    deleteAnnotationById(idToDelete);
+}
+
+function deleteAnnotationById(id) {
+    const ann = annotations.find(a => a.id === id);
+    const label = ann ? (ann.label || "Elemento") : "Elemento";
+
+    saveStateForUndo();
+    annotations = annotations.filter(a => a.id !== id);
+    if (selectedAnnotationId === id) selectedAnnotationId = null;
+    renderOverlayAnnotations();
+    updateAnnotationsListUI();
+    showToast(`Elemento "${label}" eliminado`, "info");
+}
+
+// Global modal esc / enter key listener
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-        const modal = document.getElementById("rename-shape-modal");
-        if (modal && !modal.classList.contains("hidden")) {
+        const renameModal = document.getElementById("rename-shape-modal");
+        if (renameModal && !renameModal.classList.contains("hidden")) {
             closeRenameShapeModal();
+        }
+        const delModal = document.getElementById("confirm-delete-modal");
+        if (delModal && !delModal.classList.contains("hidden")) {
+            closeConfirmDeleteModal();
+        }
+    } else if (e.key === "Enter") {
+        const delModal = document.getElementById("confirm-delete-modal");
+        if (delModal && !delModal.classList.contains("hidden")) {
+            e.preventDefault();
+            executeConfirmedDelete();
         }
     }
 });
@@ -1316,14 +1384,11 @@ window.editAnnotationLabel = editAnnotationLabel;
 window.handleMzLtSearch = handleMzLtSearch;
 window.clearMzLtSearch = clearMzLtSearch;
 window.centerViewportOnAnnotation = centerViewportOnAnnotation;
-
-function deleteAnnotationById(id) {
-    saveStateForUndo();
-    annotations = annotations.filter(a => a.id !== id);
-    if (selectedAnnotationId === id) selectedAnnotationId = null;
-    renderOverlayAnnotations();
-    updateAnnotationsListUI();
-}
+window.requestDeleteAnnotation = requestDeleteAnnotation;
+window.closeConfirmDeleteModal = closeConfirmDeleteModal;
+window.executeConfirmedDelete = executeConfirmedDelete;
+window.deleteAnnotationById = deleteAnnotationById;
+window.deleteSelectedAnnotation = deleteSelectedAnnotation;
 
 // SAVE EDITS TO LOCAL STORAGE & AUDIT LOG
 function saveCurrentEdits() {

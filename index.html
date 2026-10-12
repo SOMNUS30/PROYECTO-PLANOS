@@ -648,6 +648,27 @@
         </div>
     </div>
 
+    <!-- CONFIRM DELETE ANNOTATION MODAL -->
+    <div id="confirm-delete-modal" class="modal-backdrop hidden" onclick="if(event.target === this) closeConfirmDeleteModal()">
+        <div class="modal-card glass-panel" style="max-width: 400px; text-align: center; padding: 28px 24px;">
+            <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(239, 68, 68, 0.12); color: #ef4444; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">
+                <i data-lucide="alert-triangle" style="width: 28px; height: 28px;"></i>
+            </div>
+            <h3 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 8px;">¿Eliminar elemento?</h3>
+            <p id="confirm-delete-message" style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 22px; line-height: 1.45;">
+                ¿Estás seguro de que deseas eliminar este elemento?
+            </p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button type="button" class="btn btn-secondary" onclick="closeConfirmDeleteModal()" style="flex: 1;">
+                    Cancelar
+                </button>
+                <button type="button" id="btn-confirm-delete" class="btn btn-danger" onclick="executeConfirmedDelete()" style="flex: 1; background: #ef4444; border-color: #ef4444; color: #fff;">
+                    <i data-lucide="trash-2"></i> Eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- USER PROFILE MODAL -->
     <div id="user-profile-modal" class="modal-backdrop hidden">
         <div class="auth-card glass-panel" style="max-width: 400px; text-align: center; position: relative;">
@@ -706,11 +727,11 @@
     <script src="js/supabase-config.js?v=2.1"></script>
 
     <!-- Scripts -->
-    <script src="js/mock-data.js?v=2.4"></script>
-    <script src="js/cloud-sync.js?v=2.4"></script>
-    <script src="js/auth.js?v=2.4"></script>
-    <script src="js/pdf-editor.js?v=2.4"></script>
-    <script src="js/admin.js?v=2.4"></script>
-    <script src="js/app.js?v=2.4"></script>
+    <script src="js/mock-data.js?v=2.5"></script>
+    <script src="js/cloud-sync.js?v=2.5"></script>
+    <script src="js/auth.js?v=2.5"></script>
+    <script src="js/pdf-editor.js?v=2.5"></script>
+    <script src="js/admin.js?v=2.5"></script>
+    <script src="js/app.js?v=2.5"></script>
 </body>
 </html>
