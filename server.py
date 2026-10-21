@@ -29,11 +29,22 @@ class EcosolServerHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         
+        if self.path.endswith("sw.js"):
+            self.send_header("Service-Worker-Allowed", "/")
+
         # Headers anti-caché para asegurar que los navegadores siempre carguen el JS/CSS actualizado
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self.send_header("Pragma", "no-cache")
         self.send_header("Expires", "0")
         super().end_headers()
+
+EcosolServerHandler.extensions_map.update({
+    ".json": "application/json",
+    ".webmanifest": "application/manifest+json",
+    ".js": "application/javascript",
+    ".png": "image/png",
+    ".ico": "image/x-icon"
+})
 
     def do_OPTIONS(self):
         self.send_response(200)

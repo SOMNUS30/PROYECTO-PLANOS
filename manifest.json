@@ -1,0 +1,36 @@
+{
+  "name": "ECOSOL PLANOS - Editor y Gestión de Planos",
+  "short_name": "ECOSOL Planos",
+  "description": "Sistema de gestión y edición de PDFs y planos arquitectónicos con control de usuarios y auditoría.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "productivity",
+    "business",
+    "utilities"
+  ]
+}
