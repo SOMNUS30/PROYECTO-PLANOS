@@ -38,14 +38,6 @@ class EcosolServerHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Expires", "0")
         super().end_headers()
 
-EcosolServerHandler.extensions_map.update({
-    ".json": "application/json",
-    ".webmanifest": "application/manifest+json",
-    ".js": "application/javascript",
-    ".png": "image/png",
-    ".ico": "image/x-icon"
-})
-
     def do_OPTIONS(self):
         self.send_response(200)
         self.end_headers()
@@ -71,6 +63,15 @@ EcosolServerHandler.extensions_map.update({
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+
+# Mapeo de tipos MIME para PWA y soporte estático
+EcosolServerHandler.extensions_map.update({
+    ".json": "application/json",
+    ".webmanifest": "application/manifest+json",
+    ".js": "application/javascript",
+    ".png": "image/png",
+    ".ico": "image/x-icon"
+})
 
 class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
