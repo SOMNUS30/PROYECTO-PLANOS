@@ -1409,8 +1409,12 @@ function saveCurrentEdits() {
         docs[docIdx].editsCount = (docs[docIdx].editsCount || 0) + 1;
         docs[docIdx].lastEditedBy = user.username;
 
-        if (typeof saveDocumentsToStorage === "function") saveDocumentsToStorage(docs);
-        else localStorage.setItem("planos_documents", JSON.stringify(docs));
+        localStorage.setItem("planos_documents", JSON.stringify(docs));
+        if (typeof syncSingleDocumentToCloud === "function") {
+            syncSingleDocumentToCloud(docs[docIdx]);
+        } else if (typeof saveDocumentsToStorage === "function") {
+            saveDocumentsToStorage(docs);
+        }
         activeDocument = docs[docIdx];
 
         // Update User Edits Count

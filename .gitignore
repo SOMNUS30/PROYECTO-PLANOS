@@ -4,3 +4,5 @@ data/
 uploads/
 .DS_Store
 Thumbs.db
+
+backup_*.json

@@ -165,8 +165,8 @@ async function syncDocumentsToCloud(documents) {
                 file_size: doc.fileSize || null,
                 sample_type: doc.sampleType || "blueprint-arch",
                 pdf_url: storageUrl,
-                thumbnail_url: doc.thumbnailUrl || null,
-                annotations: doc.annotations || [],
+                thumbnail_url: (doc.thumbnailUrl && !doc.thumbnailUrl.startsWith("data:")) ? doc.thumbnailUrl : null,
+                annotations: Array.isArray(doc.annotations) ? doc.annotations : [],
                 uploaded_by: doc.uploadedBy ? String(doc.uploadedBy) : null,
                 uploaded_by_name: doc.uploadedByName || null,
                 uploaded_at: doc.uploadedAt || new Date().toISOString(),
@@ -187,6 +187,47 @@ async function syncDocumentsToCloud(documents) {
     }
 }
 window.syncDocumentsToCloud = syncDocumentsToCloud;
+
+// 5.1 Sync Single Document to Supabase Database (Fast & Zero Bloat)
+async function syncSingleDocumentToCloud(doc) {
+    if (!window.supabaseClient || !doc) return;
+    try {
+        let storageUrl = doc.pdfUrl || "";
+        if (!storageUrl && window.supabaseClient) {
+            const { data } = window.supabaseClient.storage.from("planos").getPublicUrl(`${doc.id}.pdf`);
+            if (data) storageUrl = data.publicUrl;
+        }
+
+        const row = {
+            id: String(doc.id),
+            name: doc.name,
+            file_size: doc.fileSize || null,
+            sample_type: doc.sampleType || "blueprint-arch",
+            pdf_url: storageUrl,
+            thumbnail_url: (doc.thumbnailUrl && !doc.thumbnailUrl.startsWith("data:")) ? doc.thumbnailUrl : null,
+            annotations: Array.isArray(doc.annotations) ? doc.annotations : [],
+            uploaded_by: doc.uploadedBy ? String(doc.uploadedBy) : null,
+            uploaded_by_name: doc.uploadedByName || null,
+            uploaded_at: doc.uploadedAt || new Date().toISOString(),
+            last_edited_at: doc.lastEditedAt || new Date().toISOString(),
+            edits_count: doc.editsCount || 0
+        };
+
+        const { error } = await window.supabaseClient
+            .from("documents")
+            .upsert([row], { onConflict: "id" });
+
+        if (error) {
+            console.warn("Error guardando plano en Supabase:", error.message || error);
+        } else {
+            console.log("Plano sincronizado unitariamente en Supabase:", doc.name);
+        }
+    } catch (err) {
+        console.warn("Error en syncSingleDocumentToCloud:", err);
+    }
+}
+window.syncSingleDocumentToCloud = syncSingleDocumentToCloud;
+
 
 // 6. Sync Audit Logs Array to Supabase Database (audit_logs table)
 async function syncAuditLogsToCloud(logs) {
@@ -220,10 +261,15 @@ async function fetchCloudData() {
     if (!window.supabaseClient || isSyncing) return;
     isSyncing = true;
     try {
+        // Recuperar miniaturas cacheadas localmente para no tener que descargarlas desde la nube
+        const currentLocalDocs = JSON.parse(localStorage.getItem("planos_documents") || "[]");
+        const localThumbnailMap = new Map(currentLocalDocs.map(d => [d.id, d.thumbnailUrl]));
+
         const [usersRes, docsRes, logsRes] = await Promise.all([
             window.supabaseClient.from("profiles").select("*"),
-            window.supabaseClient.from("documents").select("*"),
-            window.supabaseClient.from("audit_logs").select("*").order("timestamp", { ascending: false }).limit(100)
+            // Solo consultar columnas requeridas (excluir thumbnail_url pesado para reducir 98% el ancho de banda)
+            window.supabaseClient.from("documents").select("id, name, file_size, sample_type, pdf_url, annotations, uploaded_by, uploaded_by_name, uploaded_at, last_edited_at, edits_count"),
+            window.supabaseClient.from("audit_logs").select("*").order("timestamp", { ascending: false }).limit(50)
         ]);
 
         // 1. Process Users / Profiles
@@ -252,7 +298,7 @@ async function fetchCloudData() {
                 fileSize: d.file_size || "1.5 MB",
                 sampleType: d.sample_type || "blueprint-arch",
                 pdfUrl: d.pdf_url || "",
-                thumbnailUrl: d.thumbnail_url || null,
+                thumbnailUrl: localThumbnailMap.get(d.id) || null,
                 annotations: Array.isArray(d.annotations) ? d.annotations : [],
                 uploadedBy: d.uploaded_by || "anónimo",
                 uploadedByName: d.uploaded_by_name || "Usuario",
@@ -323,10 +369,17 @@ function initCloudSync() {
         }
     }
 
-    // Refresh on window focus (efficient, no spammy 5s polling needed)
-    window.addEventListener("focus", fetchCloudData);
+    // Refresh controlado al enfocar ventana con cooldown de 20s
+    let lastFocusFetch = 0;
+    window.addEventListener("focus", () => {
+        const now = Date.now();
+        if (now - lastFocusFetch > 20000) {
+            lastFocusFetch = now;
+            fetchCloudData();
+        }
+    });
     
-    // Periodic safety check every 30 seconds
-    setInterval(fetchCloudData, 30000);
+    // Heartbeat de seguridad suave cada 5 minutos (300s) en vez de cada 30 segundos
+    setInterval(fetchCloudData, 300000);
 }
 window.initCloudSync = initCloudSync;

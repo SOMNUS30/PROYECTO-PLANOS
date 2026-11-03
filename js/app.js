@@ -199,7 +199,8 @@ function renderDocumentsLibrary() {
                             const dIdx = allDocs.findIndex(d => d.id === doc.id);
                             if (dIdx !== -1) {
                                 allDocs[dIdx].thumbnailUrl = thumb;
-                                saveDocumentsToStorage(allDocs);
+                                // Guardar en caché local sin enviar Base64 a Supabase
+                                localStorage.setItem("planos_documents", JSON.stringify(allDocs));
                             }
                             const thumbEl = card.querySelector(".doc-thumbnail");
                             if (thumbEl) {
