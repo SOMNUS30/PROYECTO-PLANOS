@@ -568,16 +568,6 @@ function renderOverlayAnnotations() {
             case "rect":
                 overlayCtx.fillRect(x, y, w, h);
                 overlayCtx.strokeRect(x, y, w, h);
-                if (ann.label) {
-                    overlayCtx.save();
-                    overlayCtx.fillStyle = ann.color || "#ef4444";
-                    const fontSz = Math.max(9, Math.min(14, Math.round(11 * zoomScale)));
-                    overlayCtx.font = `bold ${fontSz}px Outfit, sans-serif`;
-                    overlayCtx.textAlign = "center";
-                    overlayCtx.textBaseline = "middle";
-                    overlayCtx.fillText(ann.label, x + w / 2, y + h / 2);
-                    overlayCtx.restore();
-                }
                 break;
 
             case "circle":
@@ -585,16 +575,6 @@ function renderOverlayAnnotations() {
                 overlayCtx.arc(x, y, r, 0, 2 * Math.PI);
                 overlayCtx.fill();
                 overlayCtx.stroke();
-                if (ann.label) {
-                    overlayCtx.save();
-                    overlayCtx.fillStyle = ann.color || "#ef4444";
-                    const fontSz = Math.max(9, Math.min(14, Math.round(Math.min(r * 0.8, 11 * zoomScale))));
-                    overlayCtx.font = `bold ${fontSz}px Outfit, sans-serif`;
-                    overlayCtx.textAlign = "center";
-                    overlayCtx.textBaseline = "middle";
-                    overlayCtx.fillText(ann.label, x, y);
-                    overlayCtx.restore();
-                }
                 break;
 
             case "line":
@@ -1477,14 +1457,38 @@ async function exportAnnotatedPDF() {
         const scaleX = width / unscaledW;
         const scaleY = height / unscaledH;
 
+        // Helper para convertir hex o rgba a componentes para pdf-lib
+        function parsePdfColor(colorStr, fallbackHex = "#ef4444") {
+            if (!colorStr || colorStr === "transparent") return null;
+            const rgbaMatch = colorStr.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)/i);
+            if (rgbaMatch) {
+                const r = parseInt(rgbaMatch[1], 10) / 255;
+                const g = parseInt(rgbaMatch[2], 10) / 255;
+                const b = parseInt(rgbaMatch[3], 10) / 255;
+                const a = rgbaMatch[4] !== undefined ? parseFloat(rgbaMatch[4]) : 1.0;
+                if (a <= 0.001) return null;
+                return { r, g, b, a };
+            }
+            let hex = colorStr.trim();
+            if (!hex.startsWith("#")) hex = fallbackHex;
+            if (hex.length === 4) {
+                hex = "#" + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3];
+            }
+            if (hex.length >= 7) {
+                const r = (parseInt(hex.slice(1, 3), 16) || 0) / 255;
+                const g = (parseInt(hex.slice(3, 5), 16) || 0) / 255;
+                const b = (parseInt(hex.slice(5, 7), 16) || 0) / 255;
+                return { r, g, b, a: 1.0 };
+            }
+            return null;
+        }
+
         // Embed Vector Annotations directly into native PDF Page
         annotations.forEach(ann => {
             if (ann.page && ann.page !== currentPageNum) return;
 
-            const hex = ann.color || "#ef4444";
-            const r = (parseInt(hex.slice(1, 3), 16) || 239) / 255;
-            const g = (parseInt(hex.slice(3, 5), 16) || 68) / 255;
-            const b = (parseInt(hex.slice(5, 7), 16) || 68) / 255;
+            const strokeColor = parsePdfColor(ann.color, "#ef4444") || { r: 0.93, g: 0.26, b: 0.26, a: 1.0 };
+            const fillColor = parsePdfColor(ann.fillColor);
 
             const x = ann.x * scaleX;
             const y = height - (ann.y * scaleY); // PDF coordinate origin is bottom-left
@@ -1492,46 +1496,65 @@ async function exportAnnotatedPDF() {
             const h = (ann.height || 0) * scaleY;
 
             if (ann.type === "rect") {
-                targetPage.drawRectangle({
+                const rectOptions = {
                     x: x,
                     y: y - h,
                     width: w,
                     height: h,
-                    borderColor: rgb(r, g, b),
+                    borderColor: rgb(strokeColor.r, strokeColor.g, strokeColor.b),
                     borderWidth: (ann.strokeWidth || 4) * scaleX,
-                    opacity: 0.95
-                });
-                if (ann.label) {
-                    targetPage.drawText(ann.label, {
-                        x: x + 4,
-                        y: y - (h / 2) - 3,
-                        size: Math.max(7, Math.min(11, 9 * scaleX)),
-                        color: rgb(r, g, b)
-                    });
+                    borderOpacity: strokeColor.a
+                };
+                if (fillColor) {
+                    rectOptions.color = rgb(fillColor.r, fillColor.g, fillColor.b);
+                    rectOptions.opacity = fillColor.a;
                 }
+                targetPage.drawRectangle(rectOptions);
             } else if (ann.type === "circle") {
-                targetPage.drawEllipse({
+                const ellipseOptions = {
                     x: x,
                     y: y,
                     xScale: (typeof ann.radius === 'number' ? ann.radius : 14) * scaleX,
                     yScale: (typeof ann.radius === 'number' ? ann.radius : 14) * scaleY,
-                    borderColor: rgb(r, g, b),
-                    borderWidth: (ann.strokeWidth || 4) * scaleX
-                });
-                if (ann.label) {
-                    targetPage.drawText(ann.label, {
-                        x: x - (ann.label.length * 2.8),
-                        y: y - 3,
-                        size: Math.max(7, Math.min(11, 9 * scaleX)),
-                        color: rgb(r, g, b)
-                    });
+                    borderColor: rgb(strokeColor.r, strokeColor.g, strokeColor.b),
+                    borderWidth: (ann.strokeWidth || 4) * scaleX,
+                    borderOpacity: strokeColor.a
+                };
+                if (fillColor) {
+                    ellipseOptions.color = rgb(fillColor.r, fillColor.g, fillColor.b);
+                    ellipseOptions.opacity = fillColor.a;
                 }
+                targetPage.drawEllipse(ellipseOptions);
             } else if (ann.type === "line") {
+                const endPdfX = ann.endX * scaleX;
+                const endPdfY = height - (ann.endY * scaleY);
                 targetPage.drawLine({
                     start: { x: x, y: y },
-                    end: { x: ann.endX * scaleX, y: height - (ann.endY * scaleY) },
-                    color: rgb(r, g, b),
-                    thickness: (ann.strokeWidth || 4) * scaleX
+                    end: { x: endPdfX, y: endPdfY },
+                    color: rgb(strokeColor.r, strokeColor.g, strokeColor.b),
+                    thickness: (ann.strokeWidth || 4) * scaleX,
+                    opacity: strokeColor.a
+                });
+                // Arrowhead
+                const angle = Math.atan2((ann.endY - ann.y), (ann.endX - ann.x));
+                const headLen = 14 * scaleX;
+                const arrowP1X = endPdfX - headLen * Math.cos(angle - Math.PI / 6);
+                const arrowP1Y = endPdfY + headLen * Math.sin(angle - Math.PI / 6);
+                const arrowP2X = endPdfX - headLen * Math.cos(angle + Math.PI / 6);
+                const arrowP2Y = endPdfY + headLen * Math.sin(angle + Math.PI / 6);
+                targetPage.drawLine({
+                    start: { x: endPdfX, y: endPdfY },
+                    end: { x: arrowP1X, y: arrowP1Y },
+                    color: rgb(strokeColor.r, strokeColor.g, strokeColor.b),
+                    thickness: (ann.strokeWidth || 4) * scaleX,
+                    opacity: strokeColor.a
+                });
+                targetPage.drawLine({
+                    start: { x: endPdfX, y: endPdfY },
+                    end: { x: arrowP2X, y: arrowP2Y },
+                    color: rgb(strokeColor.r, strokeColor.g, strokeColor.b),
+                    thickness: (ann.strokeWidth || 4) * scaleX,
+                    opacity: strokeColor.a
                 });
             } else if (ann.type === "draw" && ann.points && ann.points.length > 1) {
                 for (let i = 0; i < ann.points.length - 1; i++) {
@@ -1540,8 +1563,9 @@ async function exportAnnotatedPDF() {
                     targetPage.drawLine({
                         start: { x: p1.x * scaleX, y: height - (p1.y * scaleY) },
                         end: { x: p2.x * scaleX, y: height - (p2.y * scaleY) },
-                        color: rgb(r, g, b),
-                        thickness: (ann.strokeWidth || 3) * scaleX
+                        color: rgb(strokeColor.r, strokeColor.g, strokeColor.b),
+                        thickness: (ann.strokeWidth || 3) * scaleX,
+                        opacity: strokeColor.a
                     });
                 }
             } else if (ann.type === "text" || ann.type === "stamp") {
@@ -1549,7 +1573,7 @@ async function exportAnnotatedPDF() {
                     x: x,
                     y: y - 15,
                     size: (ann.fontSize || 18) * scaleX,
-                    color: rgb(r, g, b)
+                    color: rgb(strokeColor.r, strokeColor.g, strokeColor.b)
                 });
             }
         });
