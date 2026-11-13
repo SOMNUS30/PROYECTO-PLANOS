@@ -116,8 +116,8 @@ let zoomDebounceTimer = null;
 
 let activeTool = 'select'; // select, pan, rect, circle, line, draw, text, stamp
 let currentColor = '#ef4444';
-let currentFill = '0.2';
-let currentStrokeWidth = 4;
+let currentFill = '1.0'; // Relleno siempre sólido
+let currentStrokeWidth = 2; // Grosor predeterminado fijo en 2px
 
 let annotations = []; // Array of annotation objects for active document
 let selectedAnnotationId = null;
@@ -182,6 +182,7 @@ function initPdfEditorEngine() {
     overlayCanvas.addEventListener("mousedown", handleCanvasMouseDown);
     overlayCanvas.addEventListener("mousemove", handleCanvasMouseMove);
     overlayCanvas.addEventListener("mouseup", handleCanvasMouseUp);
+    overlayCanvas.addEventListener("dblclick", handleCanvasDoubleClick);
 
     overlayCanvas.addEventListener("touchstart", handleTouchStart);
     overlayCanvas.addEventListener("touchmove", handleTouchMove);
@@ -649,6 +650,37 @@ function renderOverlayAnnotations() {
     overlayCtx.restore();
 }
 
+// Helper: Distancia de un punto a un segmento de recta
+function distToSegment(p, v, w) {
+    const l2 = (w.x - v.x) ** 2 + (w.y - v.y) ** 2;
+    if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+    let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+}
+
+// Helper: Encontrar forma bajo coordenadas (x, y) del plano
+function findAnnotationAtPoint(x, y) {
+    return annotations.slice().reverse().find(ann => {
+        if (ann.page && ann.page !== currentPageNum) return false;
+        if (ann.type === "rect") {
+            return x >= ann.x && x <= ann.x + ann.width && y >= ann.y && y <= ann.y + ann.height;
+        } else if (ann.type === "circle") {
+            const dist = Math.hypot(x - ann.x, y - ann.y);
+            const r = typeof ann.radius === "number" ? ann.radius : 14;
+            return dist <= (r + 8);
+        } else if (ann.type === "line") {
+            const dist = distToSegment({ x, y }, { x: ann.x, y: ann.y }, { x: ann.endX, y: ann.endY });
+            return dist <= Math.max(10, (ann.strokeWidth || 2) + 6);
+        } else if (ann.type === "draw" && ann.points && ann.points.length > 0) {
+            return ann.points.some(pt => Math.hypot(x - pt.x, y - pt.y) <= 12);
+        } else if (ann.type === "stamp" || ann.type === "text") {
+            return x >= ann.x && x <= ann.x + 160 && y >= ann.y - 25 && y <= ann.y + 45;
+        }
+        return false;
+    });
+}
+
 // Convert Mouse/Touch Client Coordinates to 1:1 Unscaled Canvas Coordinates
 function getCanvasMouseCoords(e) {
     const rect = overlayCanvas.getBoundingClientRect();
@@ -656,6 +688,55 @@ function getCanvasMouseCoords(e) {
         x: (e.clientX - rect.left) / zoomScale,
         y: (e.clientY - rect.top) / zoomScale
     };
+}
+
+// DOBLE CLIC EN FORMA: Llevar directamente a la tarjeta en la barra de Capas de Edición
+function handleCanvasDoubleClick(e) {
+    const coords = getCanvasMouseCoords(e);
+    const clickedAnn = findAnnotationAtPoint(coords.x, coords.y);
+    if (!clickedAnn) return;
+
+    // Cambiar a herramienta selección para interactuar con la forma
+    if (typeof setActiveTool === "function") {
+        setActiveTool("select");
+    }
+
+    selectedAnnotationId = clickedAnn.id;
+    renderOverlayAnnotations();
+
+    // 1. Abrir panel lateral de capas si está cerrado/colapsado
+    const layersSidebar = document.getElementById("annotations-sidebar");
+    if (layersSidebar && layersSidebar.classList.contains("collapsed")) {
+        layersSidebar.classList.remove("collapsed");
+    }
+
+    // 2. Si hay un filtro de Mz/Lt activo que oculte esta tarjeta, limpiarlo
+    const mzInput = document.getElementById("search-filter-mz");
+    const ltInput = document.getElementById("search-filter-lt");
+    const currentMzQ = mzInput ? mzInput.value.trim().toLowerCase() : "";
+    const currentLtQ = ltInput ? ltInput.value.trim().toLowerCase() : "";
+    if ((currentMzQ || currentLtQ) && !matchesMzLtFilter(clickedAnn, currentMzQ, currentLtQ)) {
+        if (mzInput) mzInput.value = "";
+        if (ltInput) ltInput.value = "";
+    }
+
+    // 3. Actualizar la interfaz de tarjetas
+    updateAnnotationsListUI();
+
+    // 4. Scroll suave hacia la tarjeta en la lista y efecto de resalte visual
+    setTimeout(() => {
+        const cardEl = document.getElementById(`annotation-item-${clickedAnn.id}`);
+        if (cardEl) {
+            cardEl.scrollIntoView({ behavior: "smooth", block: "center" });
+            cardEl.classList.add("flash-highlight");
+            setTimeout(() => {
+                cardEl.classList.remove("flash-highlight");
+            }, 1800);
+        }
+    }, 60);
+
+    const labelName = clickedAnn.label || (clickedAnn.manzana && clickedAnn.lote ? `Mz. ${clickedAnn.manzana} Lt. ${clickedAnn.lote}` : "Forma");
+    showToast(`Forma localizada: "${labelName}"`, "info");
 }
 
 // MOUSE & TOUCH EVENT HANDLERS FOR CANVAS DRAWING AND PANNING
@@ -667,20 +748,7 @@ function handleCanvasMouseDown(e) {
     startY = coords.y;
 
     if (activeTool === "select") {
-        // Check hit testing
-        const clickedAnn = annotations.slice().reverse().find(ann => {
-            if (ann.type === "rect") {
-                return startX >= ann.x && startX <= ann.x + ann.width && startY >= ann.y && startY <= ann.y + ann.height;
-            } else if (ann.type === "circle") {
-                const dist = Math.hypot(startX - ann.x, startY - ann.y);
-                const r = typeof ann.radius === "number" ? ann.radius : 14;
-                return dist <= (r + 4);
-            } else if (ann.type === "stamp" || ann.type === "text") {
-                return startX >= ann.x && startX <= ann.x + 140 && startY >= ann.y - 20 && startY <= ann.y + 45;
-            }
-            return false;
-        });
-
+        const clickedAnn = findAnnotationAtPoint(startX, startY);
         selectedAnnotationId = clickedAnn ? clickedAnn.id : null;
         renderOverlayAnnotations();
         updateAnnotationsListUI();
@@ -941,13 +1009,17 @@ function setActiveTool(tool) {
 
 function setColorPreset(hex) {
     currentColor = hex;
-    document.getElementById("shape-color-picker").value = hex;
+    const picker = document.getElementById("shape-color-picker");
+    if (picker) picker.value = hex;
+    currentFill = '1.0';
+    currentStrokeWidth = 2;
 }
 
 function updateSelectedToolStyle() {
-    currentColor = document.getElementById("shape-color-picker").value;
-    currentFill = document.getElementById("shape-fill-select").value;
-    currentStrokeWidth = parseInt(document.getElementById("shape-stroke-select").value);
+    const picker = document.getElementById("shape-color-picker");
+    if (picker) currentColor = picker.value;
+    currentFill = '1.0'; // Siempre sólido
+    currentStrokeWidth = 2; // Siempre 2px
 }
 
 function saveStateForUndo() {
@@ -1121,6 +1193,7 @@ function updateAnnotationsListUI() {
     listContainer.innerHTML = "";
     filteredAnnotations.forEach((ann, idx) => {
         const item = document.createElement("div");
+        item.id = `annotation-item-${ann.id}`;
         item.className = `annotation-item ${ann.id === selectedAnnotationId ? 'selected' : ''}`;
         
         let defaultTypeLabel = "Forma";

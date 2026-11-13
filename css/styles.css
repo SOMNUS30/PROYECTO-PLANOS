@@ -1108,6 +1108,13 @@ body.in-editor-mode .content-body {
     background: var(--primary-light);
     border-color: var(--primary);
 }
+.annotation-item.flash-highlight {
+    background: rgba(99, 102, 241, 0.35) !important;
+    border-color: #818cf8 !important;
+    box-shadow: 0 0 16px rgba(99, 102, 241, 0.75) !important;
+    transform: scale(1.02);
+    transition: all 0.25s ease;
+}
 
 .canvas-viewport {
     flex: 1;
